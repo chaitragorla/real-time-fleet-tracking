@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AddWise GPS API Documentation</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <p class="eyebrow">NestJS + MongoDB Backend</p>
+        <h1>AddWise GPS API</h1>
+        <p>
+          Compatibility documentation for the migrated backend. Legacy `/v1`
+          routes are preserved while MongoDB, Mongoose indexes, JWT tokens, and
+          DTO validation power the new service layer.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>Authentication</h2>
+        <article class="endpoint post">
+          <span>POST</span><code>/v1/auth/send-otp</code>
+          <p>Body: <code>{ "phoneNumber": "9876543210", "name": "Optional", "role": "customer" }</code></p>
+          <p>200: <code>{ success, message, phoneNumber, userExists, smsStatus, smsDetails }</code></p>
+          <p>400: invalid or missing phone number.</p>
+        </article>
+        <article class="endpoint post">
+          <span>POST</span><code>/v1/auth/verify-otp</code>
+          <p>Body: <code>{ "phoneNumber": "9876543210", "otp": "123456", "name": "Optional", "role": "customer", "email": "optional@example.com" }</code></p>
+          <p>200: <code>{ success, message, isNewUser, userType, user, sessionToken, accessToken, otpVerified }</code></p>
+          <p>401: invalid or expired OTP.</p>
+        </article>
+        <article class="endpoint get">
+          <span>GET</span><code>/v1/auth/profile/:sessionToken</code>
+          <p>Returns the legacy super-admin profile for a `session_...` token.</p>
+        </article>
+        <article class="endpoint put">
+          <span>PUT</span><code>/v1/auth/profile/:sessionToken</code>
+          <p>Body: <code>{ "name": "New Name" }</code>. Updates a legacy profile.</p>
+        </article>
+        <article class="endpoint post">
+          <span>POST</span><code>/v1/auth/cleanup-otps</code>
+          <p>Deletes expired OTP records. OTPs also have a MongoDB TTL index.</p>
+        </article>
+      </section>
+
+      <section class="card">
+        <h2>GPS Tracking</h2>
+        <article class="endpoint post">
+          <span>POST</span><code>/v1/gps-signal/update-location</code>
+          <p>Body: <code>{ device_code, device_m2m_number, latitude, longitude, accuracy? }</code></p>
+          <p>Validates that the 13-digit M2M number belongs to the device, stores a GeoJSON point, and returns the legacy insert shape.</p>
+        </article>
+        <article class="endpoint get">
+          <span>GET</span><code>/v1/gps-signal/current-location</code>
+          <p>Returns the in-memory current location compatibility payload.</p>
+        </article>
+        <article class="endpoint get">
+          <span>GET</span><code>/v1/gps-signal/:device_code</code>
+          <p>Stores the current location for an active device and returns `{ device_code, latitude, longitude, timestamp, user_id, device_name, status }`.</p>
+        </article>
+        <article class="endpoint get">
+          <span>GET</span><code>/v1/gps-signal/:device_code/history</code>
+          <p>Returns chronological route history: `{ status, device_code, count, data }`.</p>
+        </article>
+        <article class="endpoint get">
+          <span>GET</span><code>/v1/gps-signal/device/:deviceCode/data</code>
+          <p>Frontend map endpoint returning `{ success, data, count }`.</p>
+        </article>
+        <article class="endpoint delete">
+          <span>DELETE</span><code>/v1/gps-signal/device/:deviceCode/clear</code>
+          <p>Deletes all GPS rows for a device and returns `deletedCount`.</p>
+        </article>
+        <article class="endpoint post">
+          <span>POST</span><code>/v1/gps-signal/device/:device_code/active</code>
+          <p>Body: <code>{ "is_active": true }</code>. Enables or disables tracking.</p>
+        </article>
+      </section>
+
+      <section class="card">
+        <h2>Devices, SMS, System</h2>
+        <article class="endpoint get">
+          <span>GET</span><code>/v1/devices/active</code>
+          <p>Returns active allocated devices for monitoring and simulations.</p>
+        </article>
+        <article class="endpoint get">
+          <span>GET</span><code>/v1/devices</code>
+          <p>Returns <code>{ success, count, data }</code> for all Mongo-backed devices.</p>
+        </article>
+        <article class="endpoint post">
+          <span>POST</span><code>/v1/devices</code>
+          <p>Body: <code>{ "count": 1 }</code> or <code>{ "devices": [{ "device_code": "ABC", "qr_code": "ABC" }] }</code>.</p>
+        </article>
+        <article class="endpoint get">
+          <span>GET</span><code>/v1/devices/code/:deviceCode</code>
+          <p>Fetches one device by code.</p>
+        </article>
+        <article class="endpoint get">
+          <span>GET</span><code>/v1/devices/owner/:ownerId</code>
+          <p>Returns devices allocated to a customer.</p>
+        </article>
+        <article class="endpoint get">
+          <span>GET</span><code>/v1/devices/received/:userId</code>
+          <p>Returns device shares received by a customer, including owner and device records.</p>
+        </article>
+        <article class="endpoint get">
+          <span>GET</span><code>/v1/devices/sent/:ownerId</code>
+          <p>Returns device shares sent by an owner.</p>
+        </article>
+        <article class="endpoint put">
+          <span>PATCH</span><code>/v1/devices/:deviceCode</code>
+          <p>Body: <code>{ device_name?, device_icon?, device_m2m_number?, is_active? }</code>.</p>
+        </article>
+        <article class="endpoint put">
+          <span>PATCH</span><code>/v1/devices/id/:legacyId</code>
+          <p>Updates a device by stable numeric legacy ID.</p>
+        </article>
+        <article class="endpoint post">
+          <span>POST</span><code>/v1/devices/:deviceCode/allocate</code>
+          <p>Body: <code>{ allocated_to_customer_id, allocated_to_customer_name, device_name?, device_icon? }</code>.</p>
+        </article>
+        <article class="endpoint post">
+          <span>POST</span><code>/v1/devices/:deviceCode/share</code>
+          <p>Body: <code>{ "phone_number": "9876543213" }</code>. Creates or reuses a Mongo device share.</p>
+        </article>
+        <article class="endpoint delete">
+          <span>DELETE</span><code>/v1/devices/shares/:shareId</code>
+          <p>Revokes shared-device access.</p>
+        </article>
+        <article class="endpoint post">
+          <span>POST</span><code>/v1/devices/id/:legacyId/unassign</code>
+          <p>Unassigns one device and removes its share records.</p>
+        </article>
+        <article class="endpoint post">
+          <span>POST</span><code>/v1/devices/owner/:ownerId/unassign-all</code>
+          <p>Unassigns all devices owned by a customer and removes related share records.</p>
+        </article>
+        <article class="endpoint delete">
+          <span>DELETE</span><code>/v1/devices/id/:legacyId</code>
+          <p>Deletes a device by legacy ID.</p>
+        </article>
+        <article class="endpoint delete">
+          <span>DELETE</span><code>/v1/devices/:deviceCode</code>
+          <p>Deletes a device by code.</p>
+        </article>
+        <article class="endpoint get">
+          <span>GET</span><code>/v1/users?role=customer</code>
+          <p>Lists users by role: customer, admin, or superadmin.</p>
+        </article>
+        <article class="endpoint get">
+          <span>GET</span><code>/v1/users/by-phone/:phoneNumber?role=customer</code>
+          <p>Finds a Mongo user by phone and optional role.</p>
+        </article>
+        <article class="endpoint post">
+          <span>POST</span><code>/v1/users</code>
+          <p>Body: <code>{ phone_number, full_name?, email?, role?, employee_id? }</code>.</p>
+        </article>
+        <article class="endpoint get">
+          <span>GET</span><code>/v1/users/login-logs</code>
+          <p>Returns employee login audit records.</p>
+        </article>
+        <article class="endpoint post">
+          <span>POST</span><code>/v1/users/login-logs</code>
+          <p>Body: <code>{ "employee_id": "EMP001" }</code>. Creates an admin login audit record.</p>
+        </article>
+        <article class="endpoint delete">
+          <span>DELETE</span><code>/v1/users/:legacyId?role=customer</code>
+          <p>Deletes a user by stable numeric legacy ID and optional role.</p>
+        </article>
+        <article class="endpoint post">
+          <span>POST</span><code>/v1/sms/send</code>
+          <p>Body: <code>{ "phoneNumber": "9876543210", "message": "Your OTP is 123456" }</code></p>
+        </article>
+        <article class="endpoint get">
+          <span>GET</span><code>/health</code>
+          <p>Returns service status, MongoDB connection state, and SMS/OTP availability.</p>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>

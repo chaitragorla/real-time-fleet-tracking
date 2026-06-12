@@ -1,0 +1,18 @@
+# Build output
+dist/
+build/
+gps-backend/dist/
+
+# Dependency folders
+node_modules/
+gps-backend/node_modules/
+
+# Env and sensitive files
+.env
+gps-backend/.env
+
+# IDE settings
+.vscode/
+
+# Logs
+*.log
