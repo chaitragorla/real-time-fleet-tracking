@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap, Rectangle, Tooltip } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { api } from '@/lib/api';
 import { toast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, MapPin, Clock, AlertCircle, RotateCcw } from 'lucide-react';
-import { createCustomMarkerIcon, createStartIcon } from '@/utils/iconUtils';
+import { createCustomMarkerIcon, createStartIcon, getGeofenceOffsets } from '@/utils/iconUtils';
 import { IconSelector } from './IconSelector';
 
 // Fix for default markers in react-leaflet
@@ -69,6 +69,7 @@ const DeviceRouteMap: React.FC<DeviceRouteMapProps> = ({
   const [deviceIcon, setDeviceIcon] = useState<string>('car');
   const [showIconSelector, setShowIconSelector] = useState(false);
   const [isUpdatingIcon, setIsUpdatingIcon] = useState(false);
+  const [prevStatus, setPrevStatus] = useState<string>('');
 
 
   // Extract unique dates from gpsData
@@ -190,6 +191,76 @@ const DeviceRouteMap: React.FC<DeviceRouteMapProps> = ({
     ? pathCoordinates[pathCoordinates.length - 1] 
     : defaultCenter;
 
+  const referenceCoordinate = pathCoordinates.length > 0 ? pathCoordinates[0] : defaultCenter;
+  const centerLat = referenceCoordinate[0];
+  const centerLng = referenceCoordinate[1];
+
+  const offsets = getGeofenceOffsets(deviceIcon);
+
+  const homeBounds: [number, number][] = [
+    [centerLat + offsets.home[0][0], centerLng + offsets.home[0][1]],
+    [centerLat + offsets.home[1][0], centerLng + offsets.home[1][1]]
+  ];
+
+  const collegeBounds: [number, number][] = [
+    [centerLat + offsets.college[0][0], centerLng + offsets.college[0][1]],
+    [centerLat + offsets.college[1][0], centerLng + offsets.college[1][1]]
+  ];
+
+  const officeBounds: [number, number][] = [
+    [centerLat + offsets.office[0][0], centerLng + offsets.office[0][1]],
+    [centerLat + offsets.office[1][0], centerLng + offsets.office[1][1]]
+  ];
+
+  const isPointInBounds = (point: [number, number] | null, bounds: [number, number][]) => {
+    if (!point) return false;
+    const [lat, lng] = point;
+    const [[minLat, minLng], [maxLat, maxLng]] = bounds;
+    return lat >= Math.min(minLat, maxLat) &&
+           lat <= Math.max(minLat, maxLat) &&
+           lng >= Math.min(minLng, maxLng) &&
+           lng <= Math.max(minLng, maxLng);
+  };
+
+  const getParkingStatus = () => {
+    const latestPoint = pathCoordinates.length > 0 ? pathCoordinates[pathCoordinates.length - 1] : null;
+    if (!latestPoint) return { status: 'UNKNOWN', name: 'No location data', message: 'No location data available.' };
+    
+    if (isPointInBounds(latestPoint, homeBounds)) {
+      return { status: 'HOME', name: 'Home Parking Slot', message: '🎉 Correctly Parked! Your vehicle is safely parked in the Home Parking Slot.' };
+    }
+    if (isPointInBounds(latestPoint, collegeBounds)) {
+      return { status: 'COLLEGE', name: 'College Parking Slot', message: '🎉 Correctly Parked! Your vehicle is safely parked in the College Parking Slot.' };
+    }
+    if (isPointInBounds(latestPoint, officeBounds)) {
+      return { status: 'OFFICE', name: 'Office Parking Slot', message: '🎉 Correctly Parked! Your vehicle is safely parked in the Office Parking Slot.' };
+    }
+    return { status: 'WRONG', name: 'Wrong Location', message: '❌ Wrongly Parked! Your vehicle is parked outside the designated parking slots. Please park inside the square boxes.' };
+  };
+
+  const parkingInfo = getParkingStatus();
+
+  useEffect(() => {
+    if (pathCoordinates.length > 0) {
+      const currentStatus = parkingInfo.status;
+      if (currentStatus !== prevStatus && currentStatus !== 'UNKNOWN') {
+        if (currentStatus === 'WRONG') {
+          toast({
+            title: "⚠️ Parking Violation",
+            description: parkingInfo.message,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "✅ Parking Confirmed",
+            description: parkingInfo.message,
+          });
+        }
+        setPrevStatus(currentStatus);
+      }
+    }
+  }, [pathCoordinates, parkingInfo.status, prevStatus]);
+
   return (
     <div className="space-y-4">
       {showControls && (
@@ -245,6 +316,25 @@ const DeviceRouteMap: React.FC<DeviceRouteMapProps> = ({
           </div>
         </div>
       )}
+      {pathCoordinates.length > 0 && (
+        <div className={`p-4 rounded-xl border font-semibold flex items-center justify-between transition-all ${
+          parkingInfo.status === 'WRONG'
+            ? 'bg-red-500/10 border-red-500/20 text-red-400'
+            : 'bg-green-500/10 border-green-500/20 text-green-400'
+        }`}>
+          <div className="flex flex-col">
+            <span className="text-xs uppercase tracking-wider block opacity-70">Current Parking Check</span>
+            <span className="text-sm">{parkingInfo.message}</span>
+          </div>
+          <span className={`px-3 py-1 rounded-full text-xs font-bold border uppercase tracking-wide ${
+            parkingInfo.status === 'WRONG'
+              ? 'bg-red-500/20 border-red-500/30 text-red-400'
+              : 'bg-green-500/20 border-green-500/30 text-green-400'
+          }`}>
+            {parkingInfo.status === 'WRONG' ? 'Wrongly Parked' : 'Correctly Parked'}
+          </span>
+        </div>
+      )}
       <div className="border border-gray-200 rounded-lg overflow-hidden relative">
         <MapContainer
           center={centerCoordinate}
@@ -264,6 +354,51 @@ const DeviceRouteMap: React.FC<DeviceRouteMapProps> = ({
             weight={6}
             opacity={0.8}
           />
+          {/* Parking Slot Zones */}
+          <Rectangle
+            bounds={homeBounds}
+            pathOptions={{
+              color: parkingInfo.status === 'HOME' ? '#22C55E' : '#3B82F6',
+              weight: 2,
+              dashArray: '5, 5',
+              fillColor: '#3B82F6',
+              fillOpacity: 0.1
+            }}
+          >
+            <Tooltip permanent direction="center" className="bg-transparent border-none shadow-none font-bold text-blue-600 text-xs">
+              Home Parking
+            </Tooltip>
+          </Rectangle>
+
+          <Rectangle
+            bounds={collegeBounds}
+            pathOptions={{
+              color: parkingInfo.status === 'COLLEGE' ? '#22C55E' : '#3B82F6',
+              weight: 2,
+              dashArray: '5, 5',
+              fillColor: '#3B82F6',
+              fillOpacity: 0.1
+            }}
+          >
+            <Tooltip permanent direction="center" className="bg-transparent border-none shadow-none font-bold text-blue-600 text-xs">
+              College Parking
+            </Tooltip>
+          </Rectangle>
+
+          <Rectangle
+            bounds={officeBounds}
+            pathOptions={{
+              color: parkingInfo.status === 'OFFICE' ? '#22C55E' : '#3B82F6',
+              weight: 2,
+              dashArray: '5, 5',
+              fillColor: '#3B82F6',
+              fillOpacity: 0.1
+            }}
+          >
+            <Tooltip permanent direction="center" className="bg-transparent border-none shadow-none font-bold text-blue-600 text-xs">
+              Office Parking
+            </Tooltip>
+          </Rectangle>
           {/* Start point marker - only show if we have more than 1 point */}
           {filteredGpsData.length > 1 && filteredGpsData[0].latitude != null && filteredGpsData[0].longitude != null && (
             <Marker

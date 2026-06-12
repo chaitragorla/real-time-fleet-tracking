@@ -16,7 +16,9 @@ import { toast } from '@/hooks/use-toast';
 
 const CustomerDashboard = () => {
   const { user, logout } = useAuth();
-  const [activeSection, setActiveSection] = useState('my-devices');
+  const [activeSection, setActiveSection] = useState(() => {
+    return localStorage.getItem('login_mode') === 'user' ? 'add-device' : 'my-devices';
+  });
   const [customerData, setCustomerData] = useState<any>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
@@ -199,6 +201,29 @@ const CustomerDashboard = () => {
         return renderMyDevices();
     }
   };
+
+  const isUserMode = user?.email === 'user@example.com' || localStorage.getItem('login_mode') === 'user';
+
+  if (isUserMode) {
+    return (
+      <div className="flex flex-col h-screen w-full bg-[#09090b] text-white overflow-hidden">
+        <div className="flex items-center justify-between p-4 border-b border-gray-900 bg-gray-950/40">
+          <h1 className="text-lg font-bold text-white">Traceify GPS Scan Center</h1>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={logout}
+            className="border-gray-800 text-gray-300 hover:text-white hover:bg-gray-900 rounded-xl"
+          >
+            Logout
+          </Button>
+        </div>
+        <div className="flex-1 overflow-y-auto bg-[#09090b]">
+          <QRScanner />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <SidebarProvider>

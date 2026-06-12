@@ -12,11 +12,12 @@ import { UserRole } from '@/lib/api';
 
 const Login = () => {
   const [customerForm, setCustomerForm] = useState({ email: '', password: '' });
+  const [userForm, setUserForm] = useState({ email: '', password: '' });
   const [superAdminForm, setSuperAdminForm] = useState({ email: '', password: '' });
   const { login, isLoading } = useAuth();
   const navigate = useNavigate();
 
-  const handleLogin = async (e: React.FormEvent, form: { email: string; password: string }, role: UserRole) => {
+  const handleLogin = async (e: React.FormEvent, form: { email: string; password: string }, role: UserRole, mode?: 'customer' | 'user') => {
     e.preventDefault();
     if (!form.email || !form.password) {
       toast({
@@ -31,10 +32,15 @@ const Login = () => {
     if (success) {
       toast({
         title: "Access granted",
-        description: `Welcome to the ${role} dashboard.`,
+        description: `Welcome to the ${mode === 'user' ? 'User' : role} portal.`,
       });
-      if (role === 'superadmin') navigate('/superadmin/dashboard');
-      else navigate('/customer/dashboard');
+      if (role === 'superadmin') {
+        localStorage.setItem('login_mode', 'superadmin');
+        navigate('/superadmin/dashboard');
+      } else {
+        localStorage.setItem('login_mode', mode || 'customer');
+        navigate('/customer/dashboard');
+      }
     } else {
       toast({
         title: "Login failed",
@@ -63,27 +69,35 @@ const Login = () => {
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="customer" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-2 bg-gray-950/60 p-1 border border-gray-800 rounded-lg">
+              <TabsList className="grid w-full grid-cols-3 bg-gray-950/60 p-1 border border-gray-800 rounded-lg">
                 <TabsTrigger 
                   value="customer" 
-                  className="flex items-center gap-2 rounded-md py-2 data-[state=active]:bg-cyan-500 data-[state=active]:text-black text-gray-400"
+                  className="flex items-center gap-1 rounded-md py-2 data-[state=active]:bg-cyan-500 data-[state=active]:text-black text-gray-400 text-xs font-semibold"
                 >
-                  <User className="w-4 h-4" />
+                  <User className="w-3.5 h-3.5" />
                   Customer
                 </TabsTrigger>
                 <TabsTrigger 
-                  value="superadmin" 
-                  className="flex items-center gap-2 rounded-md py-2 data-[state=active]:bg-violet-500 data-[state=active]:text-white text-gray-400"
+                  value="user" 
+                  className="flex items-center gap-1 rounded-md py-2 data-[state=active]:bg-blue-500 data-[state=active]:text-white text-gray-400 text-xs font-semibold"
                 >
-                  <Crown className="w-4 h-4" />
+                  <User className="w-3.5 h-3.5" />
+                  User Login
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="superadmin" 
+                  className="flex items-center gap-1 rounded-md py-2 data-[state=active]:bg-violet-500 data-[state=active]:text-white text-gray-400 text-xs font-semibold"
+                >
+                  <Crown className="w-3.5 h-3.5" />
                   Super Admin
                 </TabsTrigger>
               </TabsList>
 
+              {/* Customer Login Form */}
               <TabsContent value="customer" className="space-y-4">
-                <form onSubmit={(e) => handleLogin(e, customerForm, 'customer')} className="space-y-4">
+                <form onSubmit={(e) => handleLogin(e, customerForm, 'customer', 'customer')} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="customer-email" className="text-gray-300 text-sm font-medium">Email Address</Label>
+                    <Label htmlFor="customer-email" className="text-gray-300 text-sm font-medium">Customer Email</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-500" />
                       <Input
@@ -130,8 +144,60 @@ const Login = () => {
                 </div>
               </TabsContent>
 
+              {/* User Login Form */}
+              <TabsContent value="user" className="space-y-4">
+                <form onSubmit={(e) => handleLogin(e, userForm, 'customer', 'user')} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="user-email" className="text-gray-300 text-sm font-medium">User Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-500" />
+                      <Input
+                        id="user-email"
+                        type="email"
+                        placeholder="user@example.com"
+                        className="pl-10 bg-gray-950/40 border-gray-800 focus-visible:ring-blue-500 text-white placeholder-gray-600 rounded-xl"
+                        value={userForm.email}
+                        onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="user-password" className="text-gray-300 text-sm font-medium">Password</Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-500" />
+                      <Input
+                        id="user-password"
+                        type="password"
+                        placeholder="••••••••"
+                        className="pl-10 bg-gray-950/40 border-gray-800 focus-visible:ring-blue-500 text-white placeholder-gray-600 rounded-xl"
+                        value={userForm.password}
+                        onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <Button
+                    type="submit"
+                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-90 text-white border-0 font-semibold py-6 rounded-xl"
+                    disabled={isLoading || !userForm.email || !userForm.password}
+                  >
+                    {isLoading ? 'Signing in...' : 'Sign In as User'}
+                  </Button>
+                </form>
+                <div className="text-center pt-2">
+                  <Link
+                    to="/signup"
+                    className="text-sm text-cyan-400 hover:text-cyan-300 transition-colors underline block"
+                  >
+                    Don't have an account? Sign up
+                  </Link>
+                </div>
+              </TabsContent>
+
+              {/* Super Admin Form */}
               <TabsContent value="superadmin" className="space-y-4">
-                <form onSubmit={(e) => handleLogin(e, superAdminForm, 'superadmin')} className="space-y-4">
+                <form onSubmit={(e) => handleLogin(e, superAdminForm, 'superadmin', 'customer')} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="superadmin-email" className="text-gray-300 text-sm font-medium">Super Admin Email Address</Label>
                     <div className="relative">

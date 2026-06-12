@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,24 +6,118 @@ import { Label } from '@/components/ui/label';
 import { api } from '@/lib/api';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { QrCode, Scan, Plus, Camera, Video, VideoOff } from 'lucide-react';
+import { QrCode, Scan, Plus, Camera, Video, VideoOff, Satellite, MapPin } from 'lucide-react';
 import Webcam from 'react-webcam';
 import { BrowserQRCodeReader } from '@zxing/browser';
 import { NotFoundException } from '@zxing/library';
 import DeviceNameModal from './DeviceNameModal';
+import GPSTracker from './GPSTracker';
+import DeviceRouteMap from './DeviceRouteMap';
+import QRCode from 'qrcode';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { MapContainer, TileLayer, Marker, Rectangle, Tooltip, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import { getGeofenceOffsets, createCustomMarkerIcon } from '@/utils/iconUtils';
+
+// Map updater to center the preview map dynamically
+const PreviewMapUpdater = ({ center }: { center: [number, number] }) => {
+  const map = useMap();
+  useEffect(() => {
+    map.setView(center, 15, { animate: true });
+  }, [center, map]);
+  return null;
+};
+
+
+
+const QRImage: React.FC<{ code: string; qrCodeData?: string | null }> = ({ code, qrCodeData }) => {
+  const [src, setSrc] = useState<string>('');
+
+  useEffect(() => {
+    if (qrCodeData?.startsWith('data:image')) {
+      setSrc(qrCodeData);
+    } else {
+      QRCode.toDataURL(code, {
+        width: 120,
+        margin: 1,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
+        }
+      })
+        .then(setSrc)
+        .catch(err => console.error('Error generating QR code:', err));
+    }
+  }, [code, qrCodeData]);
+
+  if (!src) {
+    return (
+      <div className="w-16 h-16 border border-gray-300 rounded flex items-center justify-center bg-gray-50">
+        <span className="text-gray-400 text-xs">Loading...</span>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={`QR Code for ${code}`}
+      className="w-16 h-16 border border-gray-300 rounded bg-white p-1"
+    />
+  );
+};
 
 const QRScanner = () => {
   const { user } = useAuth();
   const [deviceCode, setDeviceCode] = useState<string>('');
   const [isAllocating, setIsAllocating] = useState(false);
-  const [isCameraOn, setIsCameraOn] = useState(false);
+  const [isCameraOn, setIsCameraOn] = useState(() => {
+    return localStorage.getItem('login_mode') === 'user';
+  });
 
   const [isScanning, setIsScanning] = useState(false);
   const [showNameModal, setShowNameModal] = useState(false);
   const [pendingDeviceCode, setPendingDeviceCode] = useState<string>('');
+  
+  // Custom states for completed QR scanned / parking slot validation
+  const [showActiveWarning, setShowActiveWarning] = useState(false);
+  const [showParkingModal, setShowParkingModal] = useState(false);
+  const [scannedDeviceDetails, setScannedDeviceDetails] = useState<any>(null);
+  const [selectedParking, setSelectedParking] = useState<string>('');
+  const [deviceStartLocation, setDeviceStartLocation] = useState<[number, number] | null>(null);
+
   const webcamRef = useRef<Webcam>(null);
   const codeReader = useRef<BrowserQRCodeReader | null>(null);
   const scanningInterval = useRef<NodeJS.Timeout | null>(null);
+
+  const [devices, setDevices] = useState<any[]>([]);
+  const [selectedDevice, setSelectedDevice] = useState<any | null>(null);
+  const [activeTab, setActiveTab] = useState<'tracker' | 'route'>('route');
+
+  const fetchMyDevices = async () => {
+    if (!user) return;
+    try {
+      const { data } = await api.devices.byOwner(user.id);
+      setDevices(data || []);
+      if (data && data.length > 0 && !selectedDevice) {
+        setSelectedDevice(data[0]);
+      }
+    } catch (error) {
+      console.error('Error fetching devices:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchMyDevices();
+  }, [user]);
 
 
 
@@ -182,6 +275,86 @@ const QRScanner = () => {
     setPendingDeviceCode('');
   };
 
+  const isUserMode = user?.email === 'user@example.com' || localStorage.getItem('login_mode') === 'user';
+
+  const handleParkVehicle = async () => {
+    if (!scannedDeviceDetails || !selectedParking) {
+      toast({
+        title: "Error",
+        description: "Please select a parking location.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsAllocating(true);
+      // Fetch device GPS history to get start coordinate
+      const { data: gpsPoints } = await api.gps.deviceData(scannedDeviceDetails.device_code);
+      const sortedPoints = [...(gpsPoints || [])].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      
+      const startPoint = sortedPoints[0];
+      const startLat = startPoint ? startPoint.latitude : 12.9748;
+      const startLng = startPoint ? startPoint.longitude : 77.5857;
+
+      let targetLat = startLat;
+      let targetLng = startLng;
+
+      if (selectedParking === 'HOME') {
+        targetLat = startLat + 0.001;
+        targetLng = startLng + 0.001;
+      } else if (selectedParking === 'COLLEGE') {
+        targetLat = startLat - 0.001;
+        targetLng = startLng + 0.001;
+      } else if (selectedParking === 'OFFICE') {
+        targetLat = startLat - 0.001;
+        targetLng = startLng - 0.001;
+      }
+
+      // Update location to the designated bounds center
+      await api.gps.updateLocation({
+        device_code: scannedDeviceDetails.device_code,
+        latitude: targetLat,
+        longitude: targetLng,
+        timestamp: new Date().toISOString()
+      });
+
+      toast({
+        title: "✅ Parking Confirmed",
+        description: `Your vehicle has been successfully parked in the ${selectedParking.charAt(0) + selectedParking.slice(1).toLowerCase()} Parking Slot.`,
+      });
+
+      setShowParkingModal(false);
+      setScannedDeviceDetails(null);
+      fetchMyDevices();
+    } catch (error) {
+      console.error('Error parking vehicle:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update parking location. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsAllocating(false);
+    }
+  };
+
+  const fetchStartLocation = async (deviceCode: string) => {
+    try {
+      const { data: gpsPoints } = await api.gps.deviceData(deviceCode);
+      const sortedPoints = [...(gpsPoints || [])].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      const startPoint = sortedPoints[0];
+      if (startPoint) {
+        setDeviceStartLocation([startPoint.latitude, startPoint.longitude]);
+      } else {
+        setDeviceStartLocation([12.9748, 77.5857]); // Fallback to Bangalore
+      }
+    } catch (error) {
+      console.error('Error fetching start location:', error);
+      setDeviceStartLocation([12.9748, 77.5857]);
+    }
+  };
+
   const allocateScannedDevice = async (scannedCode: string) => {
     if (!user) {
       toast({
@@ -201,6 +374,27 @@ const QRScanner = () => {
         toast({
           title: "Error",
           description: "Device not found. Please check the device code.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (isUserMode) {
+        if (existingDevice.is_active) {
+          setShowActiveWarning(true);
+        } else {
+          setScannedDeviceDetails(existingDevice);
+          setSelectedParking('');
+          await fetchStartLocation(existingDevice.device_code);
+          setShowParkingModal(true);
+        }
+        return;
+      }
+
+      if (existingDevice.is_active) {
+        toast({
+          title: "Unable to scan",
+          description: "Trip is active and unable to scan.",
           variant: "destructive",
         });
         return;
@@ -275,6 +469,28 @@ const QRScanner = () => {
         return;
       }
 
+      if (isUserMode) {
+        if (existingDevice.is_active) {
+          setShowActiveWarning(true);
+        } else {
+          setScannedDeviceDetails(existingDevice);
+          setSelectedParking('');
+          await fetchStartLocation(existingDevice.device_code);
+          setShowParkingModal(true);
+        }
+        return;
+      }
+
+
+      if (existingDevice.is_active) {
+        toast({
+          title: "Unable to scan",
+          description: "Trip is active and unable to scan.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       if (existingDevice.allocated_to_customer_id) {
         // Check if the device is already allocated to the current user
         const deviceOwnerId = existingDevice.allocated_to_customer_id?.toString();
@@ -311,6 +527,37 @@ const QRScanner = () => {
     } finally {
       setIsAllocating(false);
     }
+  };
+
+  const getSelectedGeofenceDetails = () => {
+    if (!scannedDeviceDetails || !deviceStartLocation || !selectedParking) return null;
+    const [startLat, startLng] = deviceStartLocation;
+    const offsets = getGeofenceOffsets(scannedDeviceDetails.device_icon);
+    
+    let bounds: [number, number][] = [];
+    let center: [number, number] = [startLat, startLng];
+    
+    if (selectedParking === 'HOME') {
+      bounds = [
+        [startLat + offsets.home[0][0], startLng + offsets.home[0][1]],
+        [startLat + offsets.home[1][0], startLng + offsets.home[1][1]]
+      ];
+      center = [startLat + offsets.centerOffset.HOME[0], startLng + offsets.centerOffset.HOME[1]];
+    } else if (selectedParking === 'COLLEGE') {
+      bounds = [
+        [startLat + offsets.college[0][0], startLng + offsets.college[0][1]],
+        [startLat + offsets.college[1][0], startLng + offsets.college[1][1]]
+      ];
+      center = [startLat + offsets.centerOffset.COLLEGE[0], startLng + offsets.centerOffset.COLLEGE[1]];
+    } else if (selectedParking === 'OFFICE') {
+      bounds = [
+        [startLat + offsets.office[0][0], startLng + offsets.office[0][1]],
+        [startLat + offsets.office[1][0], startLng + offsets.office[1][1]]
+      ];
+      center = [startLat + offsets.centerOffset.OFFICE[0], startLng + offsets.centerOffset.OFFICE[1]];
+    }
+    
+    return { bounds, center };
   };
 
   return (
@@ -500,13 +747,279 @@ const QRScanner = () => {
         deviceCode={pendingDeviceCode}
         onAllocateDevice={handleDeviceAllocation}
         onCancel={handleModalCancel}
-        onSuccess={() => {
-          // Refresh the page to update device lists
-          setTimeout(() => {
-            window.location.reload();
-          }, 1000);
+        onSuccess={async () => {
+          try {
+            const { data } = await api.devices.byOwner(user?.id);
+            setDevices(data || []);
+            const newDevice = (data || []).find(d => d.device_code === pendingDeviceCode);
+            if (newDevice) {
+              setSelectedDevice(newDevice);
+              toast({
+                title: "Device Added",
+                description: `Successfully added and selected ${newDevice.device_name || newDevice.device_code}`,
+              });
+            } else if (data && data.length > 0) {
+              setSelectedDevice(data[0]);
+            }
+          } catch (e) {
+            console.error(e);
+          }
+          setShowNameModal(false);
+          setPendingDeviceCode('');
         }}
       />
+
+      {/* Active Vehicle Tracking Card */}
+      {selectedDevice && (
+        <div className="max-w-4xl mx-auto mt-8 px-4 pb-12">
+          <Card className="bg-gray-900 border-gray-800 text-white">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Scan className="w-5 h-5 text-blue-500" />
+                Active Vehicle Tracking
+              </CardTitle>
+              <CardDescription className="text-gray-400">
+                Live location check and parking slot validation
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Dropdown & QR Code */}
+              <div className="flex flex-col sm:flex-row items-center gap-4 bg-gray-950 p-4 border border-gray-800 rounded-xl">
+                <div className="flex-1 w-full">
+                  <label className="text-xs font-semibold text-gray-400 block mb-1">Select Vehicle</label>
+                  <select
+                    className="w-full bg-gray-900 border border-gray-800 rounded-lg p-2 text-white font-medium"
+                    value={selectedDevice.id}
+                    onChange={(e) => {
+                      const dev = devices.find(d => String(d.id) === e.target.value);
+                      if (dev) setSelectedDevice(dev);
+                    }}
+                  >
+                    {devices.map(d => (
+                      <option key={d.id} value={d.id} className="bg-gray-900 text-white animate-none">
+                        {d.device_name || d.device_code} ({d.device_code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center gap-3 bg-gray-900 p-2 rounded-lg border border-gray-800 justify-center w-full sm:w-auto animate-none">
+                  <QRImage code={selectedDevice.device_code} qrCodeData={selectedDevice.qr_code} />
+                  <div className="text-left animate-none">
+                    <p className="text-xs font-bold text-gray-400">Automatic QR Code</p>
+                    <p className="text-xs font-mono text-cyan-400">{selectedDevice.device_code}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tabs for Live / History */}
+              <div className="flex border-b border-gray-800">
+                <button
+                  onClick={() => setActiveTab('tracker')}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === 'tracker'
+                      ? 'border-blue-500 text-blue-400 font-semibold'
+                      : 'border-transparent text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  Live GPS Tracker
+                </button>
+                <button
+                  onClick={() => setActiveTab('route')}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === 'route'
+                      ? 'border-blue-500 text-blue-400 font-semibold'
+                      : 'border-transparent text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  Route History
+                </button>
+              </div>
+
+              {/* Render Map & Tracking */}
+              <div className="mt-4 text-gray-800">
+                {activeTab === 'tracker' ? (
+                  <GPSTracker
+                    deviceCode={selectedDevice.device_code}
+                    deviceName={selectedDevice.device_name || undefined}
+                    deviceM2mNumber={selectedDevice.device_m2m_number}
+                    isTrackingActive={selectedDevice.is_active}
+                    onToggleTracking={async (active) => {
+                      try {
+                        await api.devices.updateById(selectedDevice.id, { is_active: active });
+                        setSelectedDevice({ ...selectedDevice, is_active: active });
+                        fetchMyDevices();
+                      } catch (error) {
+                        console.error('Error toggling tracking:', error);
+                      }
+                    }}
+                  />
+                ) : (
+                  <DeviceRouteMap
+                    deviceCode={selectedDevice.device_code}
+                    deviceName={selectedDevice.device_name || undefined}
+                    height="450px"
+                    showControls={true}
+                    isTrackingActive={selectedDevice.is_active}
+                  />
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Active Trip Warning Dialog */}
+      <Dialog open={showActiveWarning} onOpenChange={setShowActiveWarning}>
+        <DialogContent className="bg-gray-900 border border-gray-800 text-white max-w-sm rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2 text-amber-500">
+              <span>⚠️ Trip in Progress</span>
+            </DialogTitle>
+            <DialogDescription className="text-gray-400 mt-2">
+              The device is still not reached destination. Please try again after the trip is completed.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4">
+            <Button onClick={() => setShowActiveWarning(false)} className="w-full bg-amber-600 hover:bg-amber-700 text-white rounded-xl">
+              OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Completed Trip / Parking Selection Dialog */}
+      <Dialog open={showParkingModal} onOpenChange={(open) => {
+        if (!open) {
+          setShowParkingModal(false);
+          setScannedDeviceDetails(null);
+        }
+      }}>
+        <DialogContent className="bg-gray-900 border border-gray-800 text-white max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-white flex items-center gap-2">
+              <span>🚗 Vehicle Details & Parking Options</span>
+            </DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Trip completed successfully. View vehicle details and select parking spot.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {scannedDeviceDetails && (
+            <div className="space-y-6 mt-4">
+              {/* Vehicle Details */}
+              <div className="bg-gray-950 p-4 border border-gray-800 rounded-xl space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500 font-medium">Device Name:</span>
+                  <span className="text-white font-bold">{scannedDeviceDetails.device_name || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500 font-medium">Device Code:</span>
+                  <span className="text-cyan-400 font-mono font-bold">{scannedDeviceDetails.device_code}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500 font-medium">M2M Number:</span>
+                  <span className="text-gray-300">{scannedDeviceDetails.device_m2m_number || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500 font-medium">Associated Owner:</span>
+                  <span className="text-gray-300">{scannedDeviceDetails.allocated_to_customer_name || 'N/A'}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500 font-medium">Status:</span>
+                  <span className="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full text-xs font-semibold border border-emerald-500/20">
+                    Completed
+                  </span>
+                </div>
+              </div>
+
+              {/* Parking Selection */}
+              <div className="space-y-3">
+                <label className="text-sm font-semibold text-gray-300 block">Select Parking Location:</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {['HOME', 'COLLEGE', 'OFFICE'].map((place) => (
+                    <button
+                      key={place}
+                      onClick={() => setSelectedParking(place)}
+                      className={`py-3 px-2 rounded-xl border text-sm font-bold transition-all ${
+                        selectedParking === place
+                          ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20'
+                          : 'bg-gray-950 border-gray-800 text-gray-400 hover:text-white hover:bg-gray-900'
+                      }`}
+                    >
+                      {place}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Map Preview */}
+              {selectedParking && deviceStartLocation && (
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-gray-300 block">Geofence Parking Box Preview:</label>
+                  <div className="h-48 w-full rounded-xl overflow-hidden border border-gray-800 relative z-10">
+                    {(() => {
+                      const details = getSelectedGeofenceDetails();
+                      if (!details) return null;
+                      return (
+                        <MapContainer
+                          center={details.center}
+                          zoom={15}
+                          style={{ height: '100%', width: '100%' }}
+                          zoomControl={false}
+                          attributionControl={false}
+                        >
+                          <TileLayer
+                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                          />
+                          <PreviewMapUpdater center={details.center} />
+                          <Rectangle
+                            bounds={details.bounds}
+                            pathOptions={{
+                              color: '#22C55E',
+                              weight: 2,
+                              dashArray: '5, 5',
+                              fillColor: '#22C55E',
+                              fillOpacity: 0.15
+                            }}
+                          >
+                            <Tooltip permanent direction="center" className="bg-transparent border-none shadow-none font-bold text-emerald-400 text-xs">
+                              {selectedParking} Geofence Box
+                            </Tooltip>
+                          </Rectangle>
+                          <Marker
+                            position={details.center}
+                            icon={createCustomMarkerIcon(scannedDeviceDetails.device_icon, '#10B981', 20)}
+                          />
+                        </MapContainer>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="mt-6 gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowParkingModal(false);
+                setScannedDeviceDetails(null);
+              }}
+              className="bg-transparent border-gray-800 text-gray-400 hover:text-white hover:bg-gray-800 rounded-xl"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleParkVehicle}
+              disabled={isAllocating || !selectedParking}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl px-6"
+            >
+              Confirm & Park Vehicle
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

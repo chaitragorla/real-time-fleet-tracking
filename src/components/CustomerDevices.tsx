@@ -84,6 +84,7 @@ const CustomerDevices = () => {
     deviceCode: ''
   });
   const [deleteAllDialog, setDeleteAllDialog] = useState(false);
+  const [showTrackingDialog, setShowTrackingDialog] = useState(false);
   // Add state for share dialog
   const [shareDialog, setShareDialog] = useState<{ open: boolean; device: Device | null }>({ open: false, device: null });
   const [sharePhone, setSharePhone] = useState('');
@@ -429,119 +430,19 @@ const CustomerDevices = () => {
                         {formatDate(device.allocated_at || device.created_at)}
                       </TableCell>
                       <TableCell>
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="flex items-center gap-2"
-                              onClick={() => {
-                                setSelectedDevice(device);
-                                setActiveTab('route');
-                              }}
-                            >
-                              <MapPin className="w-4 h-4" />
-                              GPS Tracking
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-                            <DialogHeader>
-                              <DialogTitle className="flex items-center gap-2">
-                                <MapPin className="w-5 h-5 text-blue-600" />
-                                GPS Tracking - {device.device_name || device.device_code}
-                              </DialogTitle>
-                              <DialogDescription>
-                                Real-time GPS tracking, route history, and live location monitoring
-                              </DialogDescription>
-                            </DialogHeader>
-
-                            {/* Tab Navigation */}
-                            <div className="flex border-b border-gray-200 mt-4">
-                              <button
-                                onClick={() => setActiveTab('tracker')}
-                                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'tracker'
-                                  ? 'border-blue-500 text-blue-600'
-                                  : 'border-transparent text-gray-500 hover:text-gray-700'
-                                  }`}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <Satellite className="w-4 h-4" />
-                                  Live GPS Tracker
-                                </div>
-                              </button>
-                              <button
-                                onClick={() => setActiveTab('route')}
-                                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'route'
-                                  ? 'border-blue-500 text-blue-600'
-                                  : 'border-transparent text-gray-500 hover:text-gray-700'
-                                  }`}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <MapPin className="w-4 h-4" />
-                                  Route History
-                                </div>
-                              </button>
-                            </div>
-
-                            {/* Tab Content */}
-                            <div className="mt-4">
-                              {activeTab === 'tracker' ? (
-                                <GPSTracker
-                                  deviceCode={device.device_code}
-                                  deviceName={device.device_name || undefined}
-                                  deviceM2mNumber={device.device_m2m_number}
-                                  isTrackingActive={device.is_active}
-                                  onToggleTracking={async (active) => {
-                                    setIsLoading(true);
-                                    try {
-                                      await api.devices.updateById(device.id, { is_active: active });
-                                      toast({
-                                        title: 'Success',
-                                        description: `Tracking ${active ? 'started' : 'stopped'} successfully.`,
-                                      });
-                                      fetchMyDevices();
-                                    } catch (error) {
-                                      toast({
-                                        title: 'Error',
-                                        description: 'An unexpected error occurred.',
-                                        variant: 'destructive',
-                                      });
-                                    } finally {
-                                      setIsLoading(false);
-                                    }
-                                  }}
-                                />
-                              ) : (
-                                <DeviceRouteMap
-                                  deviceCode={device.device_code}
-                                  deviceName={device.device_name || undefined}
-                                  height="500px"
-                                  showControls={true}
-                                  isTrackingActive={device.is_active}
-                                  onToggleTracking={async (active) => {
-                                    setIsLoading(true);
-                                    try {
-                                      await api.devices.updateById(device.id, { is_active: active });
-                                      toast({
-                                        title: 'Success',
-                                        description: `Tracking ${active ? 'started' : 'stopped'} successfully.`,
-                                      });
-                                      fetchMyDevices();
-                                    } catch (error) {
-                                      toast({
-                                        title: 'Error',
-                                        description: 'An unexpected error occurred.',
-                                        variant: 'destructive',
-                                      });
-                                    } finally {
-                                      setIsLoading(false);
-                                    }
-                                  }}
-                                />
-                              )}
-                            </div>
-                          </DialogContent>
-                        </Dialog>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex items-center gap-2"
+                          onClick={() => {
+                            setSelectedDevice(device);
+                            setActiveTab('tracker');
+                            setShowTrackingDialog(true);
+                          }}
+                        >
+                          <MapPin className="w-4 h-4" />
+                          GPS Tracking
+                        </Button>
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col items-center gap-2">
@@ -616,6 +517,148 @@ const CustomerDevices = () => {
           {shareError && <div className="text-red-600 text-sm">{shareError}</div>}
         </div>
       </ConfirmationDialog>
+
+      {/* Central Tracking Dialog */}
+      <Dialog open={showTrackingDialog} onOpenChange={setShowTrackingDialog}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto bg-gray-950 border-gray-900 text-white">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between gap-4">
+              <span className="flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-blue-500" />
+                Vehicle Tracking Center
+              </span>
+            </DialogTitle>
+            <DialogDescription className="text-gray-400">
+              Select your vehicle, view its automatic QR code, monitor live locations, and verify parking status.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Vehicle Selection Dropdown & QR Code Display */}
+          <div className="flex flex-col md:flex-row items-center gap-6 bg-gray-900/40 p-4 border border-gray-800 rounded-xl mt-4">
+            <div className="flex-1 w-full">
+              <label className="text-xs font-semibold text-gray-400 block mb-1">Select Active Vehicle</label>
+              <select
+                className="w-full bg-gray-950/60 border border-gray-800 rounded-lg p-2.5 text-white font-medium focus:ring-1 focus:ring-blue-500"
+                value={selectedDevice?.id || ''}
+                onChange={(e) => {
+                  const dev = devices.find(d => String(d.id) === e.target.value);
+                  if (dev) {
+                    setSelectedDevice(dev);
+                  }
+                }}
+              >
+                {devices.map(d => (
+                  <option key={d.id} value={d.id} className="bg-gray-950 text-white">
+                    {d.device_name || d.device_code} ({d.device_code})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {selectedDevice && (
+              <div className="flex items-center gap-4 bg-gray-950/80 border border-gray-800 p-3 rounded-lg w-full md:w-auto self-stretch md:self-auto justify-center">
+                <QRImage code={selectedDevice.device_code} qrCodeData={selectedDevice.qr_code} />
+                <div className="text-left">
+                  <p className="text-xs font-bold text-gray-400">Automatic QR Code</p>
+                  <p className="text-xs font-mono text-cyan-400">{selectedDevice.device_code}</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Tab Navigation */}
+          {selectedDevice && (
+            <>
+              <div className="flex border-b border-gray-800 mt-6">
+                <button
+                  onClick={() => setActiveTab('tracker')}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'tracker'
+                    ? 'border-blue-500 text-blue-500 font-semibold'
+                    : 'border-transparent text-gray-400 hover:text-gray-200'
+                    }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Satellite className="w-4 h-4" />
+                    Live GPS Tracker
+                  </div>
+                </button>
+                <button
+                  onClick={() => setActiveTab('route')}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'route'
+                    ? 'border-blue-500 text-blue-500 font-semibold'
+                    : 'border-transparent text-gray-400 hover:text-gray-200'
+                    }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4" />
+                    Route History
+                  </div>
+                </button>
+              </div>
+
+              {/* Tab Content */}
+              <div className="mt-4 text-gray-800">
+                {activeTab === 'tracker' ? (
+                  <GPSTracker
+                    deviceCode={selectedDevice.device_code}
+                    deviceName={selectedDevice.device_name || undefined}
+                    deviceM2mNumber={selectedDevice.device_m2m_number}
+                    isTrackingActive={selectedDevice.is_active}
+                    onToggleTracking={async (active) => {
+                      setIsLoading(true);
+                      try {
+                        await api.devices.updateById(selectedDevice.id, { is_active: active });
+                        toast({
+                          title: 'Success',
+                          description: `Tracking ${active ? 'started' : 'stopped'} successfully.`,
+                        });
+                        setSelectedDevice({ ...selectedDevice, is_active: active });
+                        fetchMyDevices();
+                      } catch (error) {
+                        toast({
+                          title: 'Error',
+                          description: 'An unexpected error occurred.',
+                          variant: 'destructive',
+                        });
+                      } finally {
+                        setIsLoading(false);
+                      }
+                    }}
+                  />
+                ) : (
+                  <DeviceRouteMap
+                    deviceCode={selectedDevice.device_code}
+                    deviceName={selectedDevice.device_name || undefined}
+                    height="500px"
+                    showControls={true}
+                    isTrackingActive={selectedDevice.is_active}
+                    onToggleTracking={async (active) => {
+                      setIsLoading(true);
+                      try {
+                        await api.devices.updateById(selectedDevice.id, { is_active: active });
+                        toast({
+                          title: 'Success',
+                          description: `Tracking ${active ? 'started' : 'stopped'} successfully.`,
+                        });
+                        setSelectedDevice({ ...selectedDevice, is_active: active });
+                        fetchMyDevices();
+                      } catch (error) {
+                        toast({
+                          title: 'Error',
+                          description: 'An unexpected error occurred.',
+                          variant: 'destructive',
+                        });
+                      } finally {
+                        setIsLoading(false);
+                      }
+                    }}
+                  />
+                )}
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
