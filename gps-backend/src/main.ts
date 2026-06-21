@@ -25,8 +25,13 @@ async function bootstrap() {
   );
   app.useGlobalFilters(new AllExceptionsFilter());
 
-  // Serve static Swagger API documentation at /swagger
-  app.use('/swagger', express.static(join(__dirname, '..', '..', 'swagger')));
+  // Serve static Swagger API documentation at /swagger if the directory exists
+  try {
+    const swaggerPath = join(__dirname, '..', '..', 'swagger');
+    app.use('/swagger', express.static(swaggerPath));
+  } catch (err) {
+    console.warn('Swagger directory not found, skipping static serve.');
+  }
 
   const port = config.get<number>('PORT') || 3001;
   await app.listen(port, '0.0.0.0');
