@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '@/lib/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { toast } from '@/hooks/use-toast';
 import DeviceManagement from '../components/DeviceManagement';
 import ConfirmationDialog from '../components/ConfirmationDialog';
-import { Crown, Users, LogOut, Trash2, RefreshCw } from 'lucide-react';
+import { Crown, Users, LogOut, Trash2, RefreshCw, BookOpen } from 'lucide-react';
 
 interface Customer {
   id: number;
@@ -110,6 +111,16 @@ const SuperAdminDashboard = () => {
                 </div>
               </div>
               <div className="flex items-center gap-4">
+                <Link to="/api-docs">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="flex items-center gap-2 border-gray-800 text-gray-300 hover:text-white hover:bg-gray-900 rounded-xl"
+                  >
+                    <BookOpen className="w-4 h-4 text-cyan-400" />
+                    API Docs
+                  </Button>
+                </Link>
                 <div className="text-right hidden sm:block">
                   <p className="text-sm font-semibold text-gray-200">{user?.name}</p>
                   <p className="text-xs text-violet-400 capitalize font-medium">{user?.role}</p>

@@ -1,19 +1,35 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { api } from '@/lib/api';
-import { toast } from '@/hooks/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
-import { QrCode, Scan, Plus, Camera, Video, VideoOff, Satellite, MapPin } from 'lucide-react';
-import Webcam from 'react-webcam';
-import { BrowserQRCodeReader } from '@zxing/browser';
-import { NotFoundException } from '@zxing/library';
-import DeviceNameModal from './DeviceNameModal';
-import GPSTracker from './GPSTracker';
-import DeviceRouteMap from './DeviceRouteMap';
-import QRCode from 'qrcode';
+import React, { useState, useRef, useCallback, useEffect } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { api } from "@/lib/api";
+import { toast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  QrCode,
+  Scan,
+  Plus,
+  Camera,
+  Video,
+  VideoOff,
+  Satellite,
+  MapPin,
+} from "lucide-react";
+import Webcam from "react-webcam";
+import { BrowserQRCodeReader } from "@zxing/browser";
+import { NotFoundException } from "@zxing/library";
+import DeviceNameModal from "./DeviceNameModal";
+import GPSTracker from "./GPSTracker";
+import SimulatorMap from "./SimulatorMap";
+import DeviceRouteMap from "./DeviceRouteMap";
+import QRCode from "qrcode";
 import {
   Dialog,
   DialogContent,
@@ -21,11 +37,18 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from '@/components/ui/dialog';
-import { MapContainer, TileLayer, Marker, Rectangle, Tooltip, useMap } from 'react-leaflet';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
-import { getGeofenceOffsets, createCustomMarkerIcon } from '@/utils/iconUtils';
+} from "@/components/ui/dialog";
+import {
+  MapContainer,
+  TileLayer,
+  Marker,
+  Rectangle,
+  Tooltip,
+  useMap,
+} from "react-leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import { getGeofenceOffsets, createCustomMarkerIcon } from "@/utils/iconUtils";
 
 // Map updater to center the preview map dynamically
 const PreviewMapUpdater = ({ center }: { center: [number, number] }) => {
@@ -36,25 +59,26 @@ const PreviewMapUpdater = ({ center }: { center: [number, number] }) => {
   return null;
 };
 
-
-
-const QRImage: React.FC<{ code: string; qrCodeData?: string | null }> = ({ code, qrCodeData }) => {
-  const [src, setSrc] = useState<string>('');
+const QRImage: React.FC<{ code: string; qrCodeData?: string | null }> = ({
+  code,
+  qrCodeData,
+}) => {
+  const [src, setSrc] = useState<string>("");
 
   useEffect(() => {
-    if (qrCodeData?.startsWith('data:image')) {
+    if (qrCodeData?.startsWith("data:image")) {
       setSrc(qrCodeData);
     } else {
       QRCode.toDataURL(code, {
         width: 120,
         margin: 1,
         color: {
-          dark: '#000000',
-          light: '#FFFFFF'
-        }
+          dark: "#000000",
+          light: "#FFFFFF",
+        },
       })
         .then(setSrc)
-        .catch(err => console.error('Error generating QR code:', err));
+        .catch((err) => console.error("Error generating QR code:", err));
     }
   }, [code, qrCodeData]);
 
@@ -77,22 +101,47 @@ const QRImage: React.FC<{ code: string; qrCodeData?: string | null }> = ({ code,
 
 const QRScanner = () => {
   const { user } = useAuth();
-  const [deviceCode, setDeviceCode] = useState<string>('');
+  const [deviceCode, setDeviceCode] = useState<string>("");
   const [isAllocating, setIsAllocating] = useState(false);
   const [isCameraOn, setIsCameraOn] = useState(() => {
-    return localStorage.getItem('login_mode') === 'user';
+    return localStorage.getItem("login_mode") === "user";
   });
 
   const [isScanning, setIsScanning] = useState(false);
   const [showNameModal, setShowNameModal] = useState(false);
-  const [pendingDeviceCode, setPendingDeviceCode] = useState<string>('');
-  
+  const [pendingDeviceCode, setPendingDeviceCode] = useState<string>("");
+
   // Custom states for completed QR scanned / parking slot validation
   const [showActiveWarning, setShowActiveWarning] = useState(false);
   const [showParkingModal, setShowParkingModal] = useState(false);
   const [scannedDeviceDetails, setScannedDeviceDetails] = useState<any>(null);
-  const [selectedParking, setSelectedParking] = useState<string>('');
-  const [deviceStartLocation, setDeviceStartLocation] = useState<[number, number] | null>(null);
+  // Animation & Scoring states
+  const [showAnimationModal, setShowAnimationModal] = useState(false);
+  const [animVehiclePos, setAnimVehiclePos] = useState<[number, number] | null>(
+    null,
+  );
+  const [animTargetPos, setAnimTargetPos] = useState<[number, number] | null>(
+    null,
+  );
+  const [animBounds, setAnimBounds] = useState<[number, number][] | null>(null);
+  const [animMapCenter, setAnimMapCenter] = useState<[number, number] | null>(
+    null,
+  );
+  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+  const [isInsideBox, setIsInsideBox] = useState(true);
+  const [parkingScore, setParkingScore] = useState(100);
+  const [scoreComment, setScoreComment] = useState("");
+  const [deviceStartLocation, setDeviceStartLocation] = useState<
+    [number, number] | null
+  >(null);
+  const [selectedParking, setSelectedParking] = useState<string>("");
+
+  // GPS Simulator live-tracking overlay
+  const [showSimulatorMap, setShowSimulatorMap] = useState(false);
+  const [simulatorDeviceCode, setSimulatorDeviceCode] = useState<string>("");
+
+  const markerRef = useRef<any>(null);
+  const animFrameRef = useRef<number | null>(null);
 
   const webcamRef = useRef<Webcam>(null);
   const codeReader = useRef<BrowserQRCodeReader | null>(null);
@@ -100,7 +149,7 @@ const QRScanner = () => {
 
   const [devices, setDevices] = useState<any[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<any | null>(null);
-  const [activeTab, setActiveTab] = useState<'tracker' | 'route'>('route');
+  const [activeTab, setActiveTab] = useState<"tracker" | "route">("route");
 
   const fetchMyDevices = async () => {
     if (!user) return;
@@ -111,7 +160,7 @@ const QRScanner = () => {
         setSelectedDevice(data[0]);
       }
     } catch (error) {
-      console.error('Error fetching devices:', error);
+      console.error("Error fetching devices:", error);
     }
   };
 
@@ -119,13 +168,11 @@ const QRScanner = () => {
     fetchMyDevices();
   }, [user]);
 
-
-
   const startQRScanning = useCallback(() => {
     if (!webcamRef.current || !isCameraOn) return;
 
     setIsScanning(true);
-    
+
     if (!codeReader.current) {
       codeReader.current = new BrowserQRCodeReader();
     }
@@ -136,26 +183,31 @@ const QRScanner = () => {
         if (imageSrc) {
           const img = new Image();
           img.onload = async () => {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
+            const canvas = document.createElement("canvas");
+            const ctx = canvas.getContext("2d");
             if (ctx) {
               canvas.width = img.width;
               canvas.height = img.height;
               ctx.drawImage(img, 0, 0);
-              
+
               try {
                 // Get image data from the webcam canvas
-                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                
+                const imageData = ctx.getImageData(
+                  0,
+                  0,
+                  canvas.width,
+                  canvas.height,
+                );
+
                 // Create a new offscreen canvas for QR decoding
-                const offCanvas = document.createElement('canvas');
+                const offCanvas = document.createElement("canvas");
                 offCanvas.width = imageData.width;
                 offCanvas.height = imageData.height;
-                
-                const offCtx = offCanvas.getContext('2d');
+
+                const offCtx = offCanvas.getContext("2d");
                 if (offCtx) {
                   offCtx.putImageData(imageData, 0, 0);
-                  
+
                   const reader = codeReader.current;
                   if (!reader) {
                     console.error("QR code reader not initialized");
@@ -180,7 +232,7 @@ const QRScanner = () => {
                   }
                 }
               } catch (error) {
-                console.error('Error processing image:', error);
+                console.error("Error processing image:", error);
               }
             }
           };
@@ -199,7 +251,7 @@ const QRScanner = () => {
   }, []);
 
   const toggleCamera = useCallback(() => {
-    setIsCameraOn(prev => {
+    setIsCameraOn((prev) => {
       const newState = !prev;
       if (!newState) {
         stopQRScanning();
@@ -231,36 +283,48 @@ const QRScanner = () => {
   const startTrackingForDevice = async (deviceCode: string) => {
     try {
       // Set tracking state in localStorage to indicate tracking should start automatically
-      localStorage.setItem(`gps_tracking_${deviceCode}`, JSON.stringify({
-        isTracking: true,
-        sessionStart: new Date().toISOString(),
-        totalPoints: 0
-      }));
-      
+      localStorage.setItem(
+        `gps_tracking_${deviceCode}`,
+        JSON.stringify({
+          isTracking: true,
+          sessionStart: new Date().toISOString(),
+          totalPoints: 0,
+        }),
+      );
+
       toast({
         title: "Tracking Started",
         description: `GPS tracking has been automatically started for device ${deviceCode}. You can stop it anytime from the device tracker.`,
       });
     } catch (error) {
-      console.error('Error starting tracking for device:', error);
+      console.error("Error starting tracking for device:", error);
     }
   };
 
-  const handleDeviceAllocation = async (deviceCode: string, deviceName?: string, deviceIcon?: string): Promise<boolean> => {
+  const handleDeviceAllocation = async (
+    deviceCode: string,
+    deviceName?: string,
+    deviceIcon?: string,
+  ): Promise<boolean> => {
     try {
       if (!user) return false;
-      
-      await api.devices.claim(deviceCode, Number(user.id), deviceName, deviceIcon);
+
+      await api.devices.claim(
+        deviceCode,
+        Number(user.id),
+        deviceName,
+        deviceIcon,
+      );
       toast({
         title: "Success",
-        description: deviceName 
+        description: deviceName
           ? `Device "${deviceName}" has been successfully added!`
           : `Device ${deviceCode} has been successfully allocated to you!`,
       });
       await startTrackingForDevice(deviceCode);
       return true;
     } catch (error) {
-      console.error('Error allocating device:', error);
+      console.error("Error allocating device:", error);
       toast({
         title: "Error",
         description: "An unexpected error occurred. Please try again.",
@@ -272,13 +336,13 @@ const QRScanner = () => {
 
   const handleModalCancel = () => {
     // Reset the pending device code when user cancels
-    setPendingDeviceCode('');
+    setPendingDeviceCode("");
   };
 
-  const isUserMode = user?.email === 'user@example.com' || localStorage.getItem('login_mode') === 'user';
+  const isUserMode = localStorage.getItem("login_mode") === "user";
 
-  const handleParkVehicle = async () => {
-    if (!scannedDeviceDetails || !selectedParking) {
+  const handleParkVehicle = async (parkingPlace: string) => {
+    if (!scannedDeviceDetails || !parkingPlace) {
       toast({
         title: "Error",
         description: "Please select a parking location.",
@@ -287,12 +351,19 @@ const QRScanner = () => {
       return;
     }
 
+    setSelectedParking(parkingPlace);
+
     try {
       setIsAllocating(true);
       // Fetch device GPS history to get start coordinate
-      const { data: gpsPoints } = await api.gps.deviceData(scannedDeviceDetails.device_code);
-      const sortedPoints = [...(gpsPoints || [])].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-      
+      const { data: gpsPoints } = await api.gps.deviceData(
+        scannedDeviceDetails.device_code,
+      );
+      const sortedPoints = [...(gpsPoints || [])].sort(
+        (a, b) =>
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+      );
+
       const startPoint = sortedPoints[0];
       const startLat = startPoint ? startPoint.latitude : 12.9748;
       const startLng = startPoint ? startPoint.longitude : 77.5857;
@@ -300,38 +371,39 @@ const QRScanner = () => {
       let targetLat = startLat;
       let targetLng = startLng;
 
-      if (selectedParking === 'HOME') {
+      if (parkingPlace === "HOME") {
         targetLat = startLat + 0.001;
         targetLng = startLng + 0.001;
-      } else if (selectedParking === 'COLLEGE') {
+      } else if (parkingPlace === "COLLEGE") {
         targetLat = startLat - 0.001;
         targetLng = startLng + 0.001;
-      } else if (selectedParking === 'OFFICE') {
+      } else if (parkingPlace === "OFFICE") {
         targetLat = startLat - 0.001;
         targetLng = startLng - 0.001;
       }
 
-      // Update location to the designated bounds center
-      await api.gps.updateLocation({
-        device_code: scannedDeviceDetails.device_code,
-        latitude: targetLat,
-        longitude: targetLng,
-        timestamp: new Date().toISOString()
-      });
+      const details = getSelectedGeofenceDetails(parkingPlace);
+      if (!details) return;
 
-      toast({
-        title: "✅ Parking Confirmed",
-        description: `Your vehicle has been successfully parked in the ${selectedParking.charAt(0) + selectedParking.slice(1).toLowerCase()} Parking Slot.`,
-      });
+      const pBounds = details.bounds;
+
+      // Start the vehicle slightly offset from the target geofence box center,
+      // so the user has to manually adjust and move it into the square.
+      const initialLat = targetLat - 0.0007;
+      const initialLng = targetLng - 0.0007;
 
       setShowParkingModal(false);
-      setScannedDeviceDetails(null);
-      fetchMyDevices();
+      setAnimVehiclePos([initialLat, initialLng]);
+      setAnimTargetPos([targetLat, targetLng]);
+      setAnimBounds(pBounds);
+      setAnimMapCenter([targetLat, targetLng]);
+      setShowAnimationModal(true);
+      setShowSuccessAlert(false);
     } catch (error) {
-      console.error('Error parking vehicle:', error);
+      console.error("Error starting parking adjustment:", error);
       toast({
         title: "Error",
-        description: "Failed to update parking location. Please try again.",
+        description: "Failed to load parking workspace.",
         variant: "destructive",
       });
     } finally {
@@ -339,10 +411,97 @@ const QRScanner = () => {
     }
   };
 
+  const nudgeVehicle = (direction: "up" | "down" | "left" | "right") => {
+    if (!animVehiclePos) return;
+    const [lat, lng] = animVehiclePos;
+    const step = 0.0001; // Nudge step in degrees
+
+    if (direction === "up") setAnimVehiclePos([lat + step, lng]);
+    if (direction === "down") setAnimVehiclePos([lat - step, lng]);
+    if (direction === "left") setAnimVehiclePos([lat, lng - step]);
+    if (direction === "right") setAnimVehiclePos([lat, lng + step]);
+  };
+
+  const handleVerifyParking = async () => {
+    if (
+      !animVehiclePos ||
+      !animTargetPos ||
+      !animBounds ||
+      !scannedDeviceDetails
+    )
+      return;
+
+    const [vehicleLat, vehicleLng] = animVehiclePos;
+    const [targetLat, targetLng] = animTargetPos;
+    const pBounds = animBounds;
+
+    // Check if inside bounds
+    const isInside =
+      vehicleLat >= pBounds[0][0] &&
+      vehicleLat <= pBounds[1][0] &&
+      vehicleLng >= pBounds[0][1] &&
+      vehicleLng <= pBounds[1][1];
+
+    // Calculate score based on distance to the center
+    const distanceToCenter = Math.sqrt(
+      Math.pow(vehicleLat - targetLat, 2) + Math.pow(vehicleLng - targetLng, 2),
+    );
+    const diagonal = Math.sqrt(
+      Math.pow(pBounds[1][0] - pBounds[0][0], 2) +
+        Math.pow(pBounds[1][1] - pBounds[0][1], 2),
+    );
+    const rawScore = Math.max(
+      0,
+      100 - (distanceToCenter / (diagonal / 2)) * 100,
+    );
+    const score = Math.round(
+      isInside ? Math.max(70, rawScore) : Math.min(55, rawScore),
+    );
+
+    let comment = "";
+    if (isInside) {
+      if (score >= 90) {
+        comment = `🎉 Perfect Parking! Score: ${score}/100. Excellent job placing the vehicle exactly in the center of the slot!`;
+      } else {
+        comment = `👍 Correctly Parked! Score: ${score}/100. The vehicle is safely inside the geofence slot.`;
+      }
+    } else {
+      comment = `⚠️ Wrongly Parked! Score: ${score}/100. The vehicle is outside the designated parking zone bounds! Please try to adjust it closer to the center.`;
+    }
+
+    setIsInsideBox(isInside);
+    setParkingScore(score);
+    setScoreComment(comment);
+
+    try {
+      // Save location to backend
+      await api.gps.updateLocation({
+        device_code: scannedDeviceDetails.device_code,
+        device_m2m_number:
+          scannedDeviceDetails.device_m2m_number || "",
+        latitude: vehicleLat,
+        longitude: vehicleLng,
+        timestamp: new Date().toISOString(),
+      });
+      fetchMyDevices();
+      setShowSuccessAlert(true);
+    } catch (error) {
+      console.error("Error saving parked location:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save parked location.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const fetchStartLocation = async (deviceCode: string) => {
     try {
       const { data: gpsPoints } = await api.gps.deviceData(deviceCode);
-      const sortedPoints = [...(gpsPoints || [])].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      const sortedPoints = [...(gpsPoints || [])].sort(
+        (a, b) =>
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+      );
       const startPoint = sortedPoints[0];
       if (startPoint) {
         setDeviceStartLocation([startPoint.latitude, startPoint.longitude]);
@@ -350,7 +509,7 @@ const QRScanner = () => {
         setDeviceStartLocation([12.9748, 77.5857]); // Fallback to Bangalore
       }
     } catch (error) {
-      console.error('Error fetching start location:', error);
+      console.error("Error fetching start location:", error);
       setDeviceStartLocation([12.9748, 77.5857]);
     }
   };
@@ -380,14 +539,10 @@ const QRScanner = () => {
       }
 
       if (isUserMode) {
-        if (existingDevice.is_active) {
-          setShowActiveWarning(true);
-        } else {
-          setScannedDeviceDetails(existingDevice);
-          setSelectedParking('');
-          await fetchStartLocation(existingDevice.device_code);
-          setShowParkingModal(true);
-        }
+        // User mode: skip parking modal — go straight to live GPS simulator map
+        setScannedDeviceDetails(existingDevice);
+        setSimulatorDeviceCode(existingDevice.device_code);
+        setShowSimulatorMap(true);
         return;
       }
 
@@ -401,10 +556,9 @@ const QRScanner = () => {
       }
 
       if (existingDevice.allocated_to_customer_id) {
-        // Check if the device is already allocated to the current user
-        const deviceOwnerId = existingDevice.allocated_to_customer_id?.toString();
+        const deviceOwnerId =
+          existingDevice.allocated_to_customer_id?.toString();
         const currentUserId = user.id?.toString();
-        
         if (deviceOwnerId === currentUserId) {
           toast({
             title: "Already Added",
@@ -421,11 +575,10 @@ const QRScanner = () => {
         return;
       }
 
-      // Show device naming modal without allocating yet
       setPendingDeviceCode(scannedCode);
       setShowNameModal(true);
     } catch (error) {
-      console.error('Error allocating device:', error);
+      console.error("Error allocating device:", error);
       toast({
         title: "Error",
         description: "An unexpected error occurred. Please try again.",
@@ -458,7 +611,9 @@ const QRScanner = () => {
     setIsAllocating(true);
     try {
       // First check if device exists and is not already allocated
-      const { data: existingDevice } = await api.devices.getByCode(deviceCode.trim());
+      const { data: existingDevice } = await api.devices.getByCode(
+        deviceCode.trim(),
+      );
 
       if (!existingDevice) {
         toast({
@@ -470,17 +625,13 @@ const QRScanner = () => {
       }
 
       if (isUserMode) {
-        if (existingDevice.is_active) {
-          setShowActiveWarning(true);
-        } else {
-          setScannedDeviceDetails(existingDevice);
-          setSelectedParking('');
-          await fetchStartLocation(existingDevice.device_code);
-          setShowParkingModal(true);
-        }
+        // User mode: directly open live GPS simulator map
+        setScannedDeviceDetails(existingDevice);
+        setSimulatorDeviceCode(existingDevice.device_code);
+        setShowSimulatorMap(true);
+        setDeviceCode("");
         return;
       }
-
 
       if (existingDevice.is_active) {
         toast({
@@ -492,10 +643,9 @@ const QRScanner = () => {
       }
 
       if (existingDevice.allocated_to_customer_id) {
-        // Check if the device is already allocated to the current user
-        const deviceOwnerId = existingDevice.allocated_to_customer_id?.toString();
+        const deviceOwnerId =
+          existingDevice.allocated_to_customer_id?.toString();
         const currentUserId = user.id?.toString();
-        
         if (deviceOwnerId === currentUserId) {
           toast({
             title: "Already Added",
@@ -512,13 +662,12 @@ const QRScanner = () => {
         return;
       }
 
-      // Show device naming modal without allocating yet
       const currentDeviceCode = deviceCode;
-      setDeviceCode('');
+      setDeviceCode("");
       setPendingDeviceCode(currentDeviceCode);
       setShowNameModal(true);
     } catch (error) {
-      console.error('Error allocating device:', error);
+      console.error("Error allocating device:", error);
       toast({
         title: "Error",
         description: "An unexpected error occurred. Please try again.",
@@ -529,34 +678,45 @@ const QRScanner = () => {
     }
   };
 
-  const getSelectedGeofenceDetails = () => {
-    if (!scannedDeviceDetails || !deviceStartLocation || !selectedParking) return null;
+  const getSelectedGeofenceDetails = (parkingPlace?: string) => {
+    const activeParking = parkingPlace || selectedParking;
+    if (!scannedDeviceDetails || !deviceStartLocation || !activeParking)
+      return null;
     const [startLat, startLng] = deviceStartLocation;
     const offsets = getGeofenceOffsets(scannedDeviceDetails.device_icon);
-    
+
     let bounds: [number, number][] = [];
     let center: [number, number] = [startLat, startLng];
-    
-    if (selectedParking === 'HOME') {
+
+    if (activeParking === "HOME") {
       bounds = [
         [startLat + offsets.home[0][0], startLng + offsets.home[0][1]],
-        [startLat + offsets.home[1][0], startLng + offsets.home[1][1]]
+        [startLat + offsets.home[1][0], startLng + offsets.home[1][1]],
       ];
-      center = [startLat + offsets.centerOffset.HOME[0], startLng + offsets.centerOffset.HOME[1]];
-    } else if (selectedParking === 'COLLEGE') {
+      center = [
+        startLat + offsets.centerOffset.HOME[0],
+        startLng + offsets.centerOffset.HOME[1],
+      ];
+    } else if (activeParking === "COLLEGE") {
       bounds = [
         [startLat + offsets.college[0][0], startLng + offsets.college[0][1]],
-        [startLat + offsets.college[1][0], startLng + offsets.college[1][1]]
+        [startLat + offsets.college[1][0], startLng + offsets.college[1][1]],
       ];
-      center = [startLat + offsets.centerOffset.COLLEGE[0], startLng + offsets.centerOffset.COLLEGE[1]];
-    } else if (selectedParking === 'OFFICE') {
+      center = [
+        startLat + offsets.centerOffset.COLLEGE[0],
+        startLng + offsets.centerOffset.COLLEGE[1],
+      ];
+    } else if (activeParking === "OFFICE") {
       bounds = [
         [startLat + offsets.office[0][0], startLng + offsets.office[0][1]],
-        [startLat + offsets.office[1][0], startLng + offsets.office[1][1]]
+        [startLat + offsets.office[1][0], startLng + offsets.office[1][1]],
       ];
-      center = [startLat + offsets.centerOffset.OFFICE[0], startLng + offsets.centerOffset.OFFICE[1]];
+      center = [
+        startLat + offsets.centerOffset.OFFICE[0],
+        startLng + offsets.centerOffset.OFFICE[1],
+      ];
     }
-    
+
     return { bounds, center };
   };
 
@@ -585,7 +745,7 @@ const QRScanner = () => {
                 videoConstraints={{
                   width: 640,
                   height: 640,
-                  facingMode: "environment"
+                  facingMode: "environment",
                 }}
               />
             ) : (
@@ -595,26 +755,30 @@ const QRScanner = () => {
                 <div className="absolute top-0 right-0 w-8 h-8 border-r-4 border-t-4 border-blue-500 rounded-tr-lg"></div>
                 <div className="absolute bottom-0 left-0 w-8 h-8 border-l-4 border-b-4 border-blue-500 rounded-bl-lg"></div>
                 <div className="absolute bottom-0 right-0 w-8 h-8 border-r-4 border-b-4 border-blue-500 rounded-br-lg"></div>
-                
+
                 {/* Center QR icon */}
                 <div className="absolute inset-0 flex items-center justify-center">
                   <QrCode className="w-16 h-16 text-white/50" />
                 </div>
-                
+
                 {/* Scanning line animation */}
                 <div className="absolute top-0 left-0 right-0 h-0.5 bg-blue-500 animate-pulse"></div>
               </div>
             )}
-            
+
             {/* Camera toggle button */}
             <div className="absolute bottom-4 right-4">
-              <Button 
-                variant="ghost" 
-                size="icon" 
+              <Button
+                variant="ghost"
+                size="icon"
                 className="bg-black/30 text-white hover:bg-black/50"
                 onClick={toggleCamera}
               >
-                {isCameraOn ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
+                {isCameraOn ? (
+                  <VideoOff className="w-5 h-5" />
+                ) : (
+                  <Video className="w-5 h-5" />
+                )}
               </Button>
             </div>
           </div>
@@ -622,19 +786,23 @@ const QRScanner = () => {
           {/* Camera Controls */}
           <div className="p-6 text-center">
             <p className="text-gray-600 mb-2">
-              {isCameraOn ? (
-                isScanning ? "Scanning for QR codes..." : "Camera is active - position QR code in frame"
-              ) : "Turn on camera to scan QR codes"}
+              {isCameraOn
+                ? isScanning
+                  ? "Scanning for QR codes..."
+                  : "Camera is active - position QR code in frame"
+                : "Turn on camera to scan QR codes"}
             </p>
             {isScanning && (
               <div className="flex items-center justify-center mb-4">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-                <span className="text-sm text-blue-600 font-medium">Scanning...</span>
+                <span className="text-sm text-blue-600 font-medium">
+                  Scanning...
+                </span>
               </div>
             )}
-            <Button 
+            <Button
               onClick={toggleCamera}
-              className={`w-full mb-4 ${isCameraOn ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+              className={`w-full mb-4 ${isCameraOn ? "bg-red-600 hover:bg-red-700" : "bg-blue-600 hover:bg-blue-700"}`}
             >
               {isCameraOn ? (
                 <>
@@ -649,7 +817,7 @@ const QRScanner = () => {
               )}
             </Button>
             {isCameraOn && (
-              <Button 
+              <Button
                 onClick={isScanning ? stopQRScanning : startQRScanning}
                 variant="outline"
                 className="w-full"
@@ -673,12 +841,17 @@ const QRScanner = () => {
         {/* Manual Entry */}
         <div className="bg-white rounded-2xl shadow-xl p-6 mb-6">
           <div className="text-center mb-4">
-            <p className="text-gray-700 font-medium">Enter Device Code Manually</p>
+            <p className="text-gray-700 font-medium">
+              Enter Device Code Manually
+            </p>
           </div>
-          
+
           <div className="space-y-4">
             <div>
-              <Label htmlFor="deviceCode" className="text-sm font-medium text-gray-700">
+              <Label
+                htmlFor="deviceCode"
+                className="text-sm font-medium text-gray-700"
+              >
                 Device Code
               </Label>
               <Input
@@ -692,7 +865,7 @@ const QRScanner = () => {
               />
             </div>
 
-            <Button 
+            <Button
               onClick={allocateDevice}
               disabled={isAllocating || !deviceCode.trim()}
               className="w-full h-12 text-lg font-semibold bg-blue-600 hover:bg-blue-700"
@@ -712,8 +885,6 @@ const QRScanner = () => {
           </div>
         </div>
 
-
-
         {/* Help Section */}
         <div className="bg-blue-50 rounded-2xl p-6">
           <h3 className="font-semibold text-blue-900 mb-3 flex items-center">
@@ -722,27 +893,33 @@ const QRScanner = () => {
           </h3>
           <ol className="text-sm text-blue-800 space-y-2">
             <li className="flex items-start">
-              <span className="bg-blue-200 text-blue-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-3 mt-0.5">1</span>
+              <span className="bg-blue-200 text-blue-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-3 mt-0.5">
+                1
+              </span>
               Turn on camera to scan QR codes directly
             </li>
             <li className="flex items-start">
-              <span className="bg-blue-200 text-blue-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-3 mt-0.5">2</span>
+              <span className="bg-blue-200 text-blue-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-3 mt-0.5">
+                2
+              </span>
               Enter device code manually if you have one
             </li>
             <li className="flex items-start">
-              <span className="bg-blue-200 text-blue-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-3 mt-0.5">3</span>
+              <span className="bg-blue-200 text-blue-800 rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold mr-3 mt-0.5">
+                3
+              </span>
               The device will be allocated to your account
             </li>
           </ol>
         </div>
       </div>
-      
+
       {/* Device Name Modal */}
       <DeviceNameModal
         isOpen={showNameModal}
         onClose={() => {
           setShowNameModal(false);
-          setPendingDeviceCode('');
+          setPendingDeviceCode("");
         }}
         deviceCode={pendingDeviceCode}
         onAllocateDevice={handleDeviceAllocation}
@@ -751,7 +928,9 @@ const QRScanner = () => {
           try {
             const { data } = await api.devices.byOwner(user?.id);
             setDevices(data || []);
-            const newDevice = (data || []).find(d => d.device_code === pendingDeviceCode);
+            const newDevice = (data || []).find(
+              (d) => d.device_code === pendingDeviceCode,
+            );
             if (newDevice) {
               setSelectedDevice(newDevice);
               toast({
@@ -765,7 +944,7 @@ const QRScanner = () => {
             console.error(e);
           }
           setShowNameModal(false);
-          setPendingDeviceCode('');
+          setPendingDeviceCode("");
         }}
       />
 
@@ -786,49 +965,75 @@ const QRScanner = () => {
               {/* Dropdown & QR Code */}
               <div className="flex flex-col sm:flex-row items-center gap-4 bg-gray-950 p-4 border border-gray-800 rounded-xl">
                 <div className="flex-1 w-full">
-                  <label className="text-xs font-semibold text-gray-400 block mb-1">Select Vehicle</label>
+                  <label className="text-xs font-semibold text-gray-400 block mb-1">
+                    Select Vehicle
+                  </label>
                   <select
                     className="w-full bg-gray-900 border border-gray-800 rounded-lg p-2 text-white font-medium"
                     value={selectedDevice.id}
                     onChange={(e) => {
-                      const dev = devices.find(d => String(d.id) === e.target.value);
+                      const dev = devices.find(
+                        (d) => String(d.id) === e.target.value,
+                      );
                       if (dev) setSelectedDevice(dev);
                     }}
                   >
-                    {devices.map(d => (
-                      <option key={d.id} value={d.id} className="bg-gray-900 text-white animate-none">
+                    {devices.map((d) => (
+                      <option
+                        key={d.id}
+                        value={d.id}
+                        className="bg-gray-900 text-white animate-none"
+                      >
                         {d.device_name || d.device_code} ({d.device_code})
                       </option>
                     ))}
                   </select>
                 </div>
-                <div className="flex items-center gap-3 bg-gray-900 p-2 rounded-lg border border-gray-800 justify-center w-full sm:w-auto animate-none">
-                  <QRImage code={selectedDevice.device_code} qrCodeData={selectedDevice.qr_code} />
-                  <div className="text-left animate-none">
-                    <p className="text-xs font-bold text-gray-400">Automatic QR Code</p>
-                    <p className="text-xs font-mono text-cyan-400">{selectedDevice.device_code}</p>
+                <div className="flex flex-col items-center gap-2 w-full sm:w-auto">
+                  <div className="flex items-center gap-3 bg-gray-900 p-2 rounded-lg border border-gray-800 justify-center w-full animate-none">
+                    <QRImage
+                      code={selectedDevice.device_code}
+                      qrCodeData={selectedDevice.qr_code}
+                    />
+                    <div className="text-left animate-none">
+                      <p className="text-xs font-bold text-gray-400">
+                        Automatic QR Code
+                      </p>
+                      <p className="text-xs font-mono text-cyan-400">
+                        {selectedDevice.device_code}
+                      </p>
+                    </div>
                   </div>
+                  <Button
+                    onClick={() => {
+                      setSimulatorDeviceCode(selectedDevice.device_code);
+                      setShowSimulatorMap(true);
+                    }}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm py-2"
+                  >
+                    🚗 Track Live
+                  </Button>
                 </div>
               </div>
 
               {/* Tabs for Live / History */}
               <div className="flex border-b border-gray-800">
                 <button
-                  onClick={() => setActiveTab('tracker')}
+                  onClick={() => setActiveTab("tracker")}
                   className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                    activeTab === 'tracker'
-                      ? 'border-blue-500 text-blue-400 font-semibold'
-                      : 'border-transparent text-gray-400 hover:text-gray-200'
+                    activeTab === "tracker"
+                      ? "border-blue-500 text-blue-400 font-semibold"
+                      : "border-transparent text-gray-400 hover:text-gray-200"
                   }`}
                 >
                   Live GPS Tracker
                 </button>
                 <button
-                  onClick={() => setActiveTab('route')}
+                  onClick={() => setActiveTab("route")}
                   className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                    activeTab === 'route'
-                      ? 'border-blue-500 text-blue-400 font-semibold'
-                      : 'border-transparent text-gray-400 hover:text-gray-200'
+                    activeTab === "route"
+                      ? "border-blue-500 text-blue-400 font-semibold"
+                      : "border-transparent text-gray-400 hover:text-gray-200"
                   }`}
                 >
                   Route History
@@ -837,7 +1042,7 @@ const QRScanner = () => {
 
               {/* Render Map & Tracking */}
               <div className="mt-4 text-gray-800">
-                {activeTab === 'tracker' ? (
+                {activeTab === "tracker" ? (
                   <GPSTracker
                     deviceCode={selectedDevice.device_code}
                     deviceName={selectedDevice.device_name || undefined}
@@ -845,11 +1050,16 @@ const QRScanner = () => {
                     isTrackingActive={selectedDevice.is_active}
                     onToggleTracking={async (active) => {
                       try {
-                        await api.devices.updateById(selectedDevice.id, { is_active: active });
-                        setSelectedDevice({ ...selectedDevice, is_active: active });
+                        await api.devices.updateById(selectedDevice.id, {
+                          is_active: active,
+                        });
+                        setSelectedDevice({
+                          ...selectedDevice,
+                          is_active: active,
+                        });
                         fetchMyDevices();
                       } catch (error) {
-                        console.error('Error toggling tracking:', error);
+                        console.error("Error toggling tracking:", error);
                       }
                     }}
                   />
@@ -876,11 +1086,15 @@ const QRScanner = () => {
               <span>⚠️ Trip in Progress</span>
             </DialogTitle>
             <DialogDescription className="text-gray-400 mt-2">
-              The device is still not reached destination. Please try again after the trip is completed.
+              The device is still not reached destination. Please try again
+              after the trip is completed.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="mt-4">
-            <Button onClick={() => setShowActiveWarning(false)} className="w-full bg-amber-600 hover:bg-amber-700 text-white rounded-xl">
+            <Button
+              onClick={() => setShowActiveWarning(false)}
+              className="w-full bg-amber-600 hover:bg-amber-700 text-white rounded-xl"
+            >
               OK
             </Button>
           </DialogFooter>
@@ -888,41 +1102,59 @@ const QRScanner = () => {
       </Dialog>
 
       {/* Completed Trip / Parking Selection Dialog */}
-      <Dialog open={showParkingModal} onOpenChange={(open) => {
-        if (!open) {
-          setShowParkingModal(false);
-          setScannedDeviceDetails(null);
-        }
-      }}>
+      <Dialog
+        open={showParkingModal}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowParkingModal(false);
+            setScannedDeviceDetails(null);
+          }
+        }}
+      >
         <DialogContent className="bg-gray-900 border border-gray-800 text-white max-w-md rounded-2xl">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-white flex items-center gap-2">
               <span>🚗 Vehicle Details & Parking Options</span>
             </DialogTitle>
             <DialogDescription className="text-gray-400">
-              Trip completed successfully. View vehicle details and select parking spot.
+              Trip completed successfully. View vehicle details and select
+              parking spot.
             </DialogDescription>
           </DialogHeader>
-          
+
           {scannedDeviceDetails && (
             <div className="space-y-6 mt-4">
               {/* Vehicle Details */}
               <div className="bg-gray-950 p-4 border border-gray-800 rounded-xl space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500 font-medium">Device Name:</span>
-                  <span className="text-white font-bold">{scannedDeviceDetails.device_name || 'N/A'}</span>
+                  <span className="text-gray-500 font-medium">
+                    Device Name:
+                  </span>
+                  <span className="text-white font-bold">
+                    {scannedDeviceDetails.device_name || "N/A"}
+                  </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500 font-medium">Device Code:</span>
-                  <span className="text-cyan-400 font-mono font-bold">{scannedDeviceDetails.device_code}</span>
+                  <span className="text-gray-500 font-medium">
+                    Device Code:
+                  </span>
+                  <span className="text-cyan-400 font-mono font-bold">
+                    {scannedDeviceDetails.device_code}
+                  </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500 font-medium">M2M Number:</span>
-                  <span className="text-gray-300">{scannedDeviceDetails.device_m2m_number || 'N/A'}</span>
+                  <span className="text-gray-300">
+                    {scannedDeviceDetails.device_m2m_number || "N/A"}
+                  </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500 font-medium">Associated Owner:</span>
-                  <span className="text-gray-300">{scannedDeviceDetails.allocated_to_customer_name || 'N/A'}</span>
+                  <span className="text-gray-500 font-medium">
+                    Associated Owner:
+                  </span>
+                  <span className="text-gray-300">
+                    {scannedDeviceDetails.allocated_to_customer_name || "N/A"}
+                  </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500 font-medium">Status:</span>
@@ -933,93 +1165,294 @@ const QRScanner = () => {
               </div>
 
               {/* Parking Selection */}
-              <div className="space-y-3">
-                <label className="text-sm font-semibold text-gray-300 block">Select Parking Location:</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {['HOME', 'COLLEGE', 'OFFICE'].map((place) => (
+              <div className="space-y-4">
+                <label className="text-sm font-semibold text-gray-300 block text-center">
+                  Select Parking Location to Start Driving:
+                </label>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { id: "HOME", icon: "🏠", label: "Home" },
+                    { id: "COLLEGE", icon: "🏫", label: "College" },
+                    { id: "OFFICE", icon: "🏢", label: "Office" },
+                  ].map((place) => (
                     <button
-                      key={place}
-                      onClick={() => setSelectedParking(place)}
-                      className={`py-3 px-2 rounded-xl border text-sm font-bold transition-all ${
-                        selectedParking === place
-                          ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20'
-                          : 'bg-gray-950 border-gray-800 text-gray-400 hover:text-white hover:bg-gray-900'
-                      }`}
+                      key={place.id}
+                      onClick={() => handleParkVehicle(place.id)}
+                      className="py-4 px-2 rounded-2xl border bg-gray-950 border-gray-800 text-gray-400 hover:text-white hover:bg-gray-900 hover:border-blue-500 hover:scale-105 active:scale-95 transition-all flex flex-col items-center gap-2"
                     >
-                      {place}
+                      <span className="text-3xl">{place.icon}</span>
+                      <span className="font-bold text-sm">{place.label}</span>
                     </button>
                   ))}
                 </div>
               </div>
-
-              {/* Map Preview */}
-              {selectedParking && deviceStartLocation && (
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-gray-300 block">Geofence Parking Box Preview:</label>
-                  <div className="h-48 w-full rounded-xl overflow-hidden border border-gray-800 relative z-10">
-                    {(() => {
-                      const details = getSelectedGeofenceDetails();
-                      if (!details) return null;
-                      return (
-                        <MapContainer
-                          center={details.center}
-                          zoom={15}
-                          style={{ height: '100%', width: '100%' }}
-                          zoomControl={false}
-                          attributionControl={false}
-                        >
-                          <TileLayer
-                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                          />
-                          <PreviewMapUpdater center={details.center} />
-                          <Rectangle
-                            bounds={details.bounds}
-                            pathOptions={{
-                              color: '#22C55E',
-                              weight: 2,
-                              dashArray: '5, 5',
-                              fillColor: '#22C55E',
-                              fillOpacity: 0.15
-                            }}
-                          >
-                            <Tooltip permanent direction="center" className="bg-transparent border-none shadow-none font-bold text-emerald-400 text-xs">
-                              {selectedParking} Geofence Box
-                            </Tooltip>
-                          </Rectangle>
-                          <Marker
-                            position={details.center}
-                            icon={createCustomMarkerIcon(scannedDeviceDetails.device_icon, '#10B981', 20)}
-                          />
-                        </MapContainer>
-                      );
-                    })()}
-                  </div>
-                </div>
-              )}
             </div>
           )}
 
-          <DialogFooter className="mt-6 gap-2">
+          <DialogFooter className="mt-6">
             <Button
               variant="outline"
               onClick={() => {
                 setShowParkingModal(false);
                 setScannedDeviceDetails(null);
               }}
-              className="bg-transparent border-gray-800 text-gray-400 hover:text-white hover:bg-gray-800 rounded-xl"
+              className="w-full bg-transparent border-gray-800 text-gray-400 hover:text-white hover:bg-gray-800 rounded-xl"
             >
               Cancel
-            </Button>
-            <Button
-              onClick={handleParkVehicle}
-              disabled={isAllocating || !selectedParking}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl px-6"
-            >
-              Confirm & Park Vehicle
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Full-screen Animation Modal with Score Comment */}
+      <Dialog open={showAnimationModal} onOpenChange={() => {}}>
+        <DialogContent
+          className="bg-gray-950 border border-gray-800 text-white w-[98vw] max-w-4xl rounded-2xl p-0 overflow-y-scroll overscroll-contain"
+          style={{ maxHeight: "90vh" }}
+        >
+          <div className="p-5 border-b border-gray-800 flex justify-between items-center">
+            <div>
+              <DialogTitle className="text-xl font-bold text-white flex items-center gap-2">
+                <span>🚗</span> Adjust & Park Your Vehicle
+              </DialogTitle>
+              <DialogDescription className="text-gray-400 text-sm">
+                Drag the vehicle marker or use arrow buttons to place the
+                vehicle inside the green parking box.
+              </DialogDescription>
+            </div>
+            {showSuccessAlert && (
+              <div
+                className={`px-4 py-1.5 rounded-full text-sm font-bold border ${isInsideBox ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : "bg-red-500/10 text-red-400 border-red-500/20"}`}
+              >
+                Score: {parkingScore}/100
+              </div>
+            )}
+          </div>
+          <div
+            className="relative"
+            style={{ height: "45vh", minHeight: "280px" }}
+          >
+            {animVehiclePos && animTargetPos && animBounds && animMapCenter && (
+              <MapContainer
+                center={animMapCenter}
+                zoom={16}
+                scrollWheelZoom={false}
+                style={{ height: "100%", width: "100%" }}
+                zoomControl={true}
+                attributionControl={false}
+              >
+                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                <PreviewMapUpdater center={animMapCenter} />
+                {/* Geofence rectangle */}
+                <Rectangle
+                  bounds={animBounds}
+                  pathOptions={{
+                    color:
+                      isInsideBox && showSuccessAlert ? "#10B981" : "#3B82F6",
+                    weight: 3,
+                    dashArray: "8, 4",
+                    fillColor:
+                      isInsideBox && showSuccessAlert ? "#10B981" : "#3B82F6",
+                    fillOpacity: 0.15,
+                  }}
+                >
+                  <Tooltip
+                    permanent
+                    direction="center"
+                    className="bg-transparent border-none shadow-none font-bold text-blue-400 text-base"
+                  >
+                    {selectedParking} Parking Slot
+                  </Tooltip>
+                </Rectangle>
+                {/* Animated vehicle marker */}
+                <Marker
+                  ref={markerRef}
+                  draggable={!showSuccessAlert}
+                  eventHandlers={{
+                    dragend() {
+                      const marker = markerRef.current;
+                      if (marker != null) {
+                        setAnimVehiclePos([
+                          marker.getLatLng().lat,
+                          marker.getLatLng().lng,
+                        ]);
+                      }
+                    },
+                  }}
+                  position={animVehiclePos}
+                  icon={createCustomMarkerIcon(
+                    scannedDeviceDetails?.device_icon || "car",
+                    isInsideBox && showSuccessAlert ? "#10B981" : "#3B82F6",
+                    30,
+                  )}
+                />
+              </MapContainer>
+            )}
+
+            {/* Success Overlay with Score Popup */}
+            {showSuccessAlert && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/70 backdrop-blur-sm z-[1000] p-4">
+                <div
+                  className={`bg-gray-900 border ${isInsideBox ? "border-emerald-500/40 shadow-emerald-500/10" : "border-red-500/40 shadow-red-500/10"} rounded-3xl p-6 text-center max-w-sm w-full shadow-2xl animate-in zoom-in duration-300`}
+                >
+                  <div
+                    className={`w-20 h-20 ${isInsideBox ? "bg-emerald-500/20 border-emerald-500 text-emerald-400" : "bg-red-500/20 border-red-500 text-red-400"} border-2 rounded-full flex items-center justify-center mx-auto mb-4`}
+                  >
+                    <span className="text-4xl">
+                      {isInsideBox ? "🎉" : "⚠️"}
+                    </span>
+                  </div>
+
+                  <h2
+                    className={`text-2xl font-bold ${isInsideBox ? "text-emerald-400" : "text-red-400"} mb-1`}
+                  >
+                    {isInsideBox ? "Correctly Parked!" : "Wrongly Parked!"}
+                  </h2>
+                  <div className="text-3xl font-black mb-3">
+                    Score:{" "}
+                    <span
+                      className={
+                        isInsideBox ? "text-emerald-400" : "text-red-400"
+                      }
+                    >
+                      {parkingScore}
+                    </span>
+                    /100
+                  </div>
+
+                  <p className="text-gray-300 text-sm mb-6 px-2">
+                    {scoreComment}
+                  </p>
+
+                  {/* Track Live Button — opens GPS Simulator map */}
+                  <Button
+                    onClick={() => {
+                      const devCode = scannedDeviceDetails?.device_code || "";
+                      setSimulatorDeviceCode(devCode);
+                      setShowSimulatorMap(true);
+                      setShowSuccessAlert(false);
+                      setShowAnimationModal(false);
+                    }}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl text-base mb-2"
+                  >
+                    🚗 Track Live
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setShowSuccessAlert(false);
+                      setShowAnimationModal(false);
+                      setScannedDeviceDetails(null);
+                      setSelectedParking("");
+                      setAnimVehiclePos(null);
+                      setAnimTargetPos(null);
+                      setAnimBounds(null);
+                      setAnimMapCenter(null);
+                    }}
+                    className={`w-full ${isInsideBox ? "bg-emerald-600 hover:bg-emerald-700" : "bg-red-600 hover:bg-red-700"} text-white font-bold py-3 rounded-xl text-base`}
+                  >
+                    Done
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+          {!showSuccessAlert && (
+            <div className="p-4 border-t border-gray-800 flex flex-col items-center gap-4 bg-gray-900/40">
+              <div className="text-center">
+                <p className="text-xs text-gray-400 font-semibold mb-2 uppercase tracking-wide">
+                  Nudge Position
+                </p>
+                <div className="flex justify-center items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-gray-800 bg-gray-950 text-white font-bold h-9 w-12 hover:bg-gray-800"
+                    onClick={() => nudgeVehicle("left")}
+                  >
+                    ⬅️
+                  </Button>
+                  <div className="flex flex-col gap-1.5">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-gray-800 bg-gray-950 text-white font-bold h-9 w-12 hover:bg-gray-800"
+                      onClick={() => nudgeVehicle("up")}
+                    >
+                      ⬆️
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="border-gray-800 bg-gray-950 text-white font-bold h-9 w-12 hover:bg-gray-800"
+                      onClick={() => nudgeVehicle("down")}
+                    >
+                      ⬇️
+                    </Button>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-gray-800 bg-gray-950 text-white font-bold h-9 w-12 hover:bg-gray-800"
+                    onClick={() => nudgeVehicle("right")}
+                  >
+                    ➡️
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex gap-3 w-full max-w-sm justify-center mt-1">
+                <Button
+                  onClick={() => {
+                    setShowAnimationModal(false);
+                    setShowParkingModal(true);
+                  }}
+                  variant="ghost"
+                  className="bg-transparent border border-gray-800 text-gray-400 hover:text-white hover:bg-gray-800 rounded-xl flex-1 h-11"
+                >
+                  Back
+                </Button>
+                <Button
+                  onClick={handleVerifyParking}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl flex-1 h-11"
+                >
+                  Verify Parking 📍
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+      {/* ── Full-screen GPS Simulator Map overlay ── */}
+      {showSimulatorMap && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            background: "#0F172A",
+          }}
+        >
+          <SimulatorMap
+            deviceCode={simulatorDeviceCode}
+            deviceIcon={
+              scannedDeviceDetails?.device_icon ||
+              selectedDevice?.device_icon ||
+              "car"
+            }
+            height="100vh"
+            onClose={() => {
+              setShowSimulatorMap(false);
+              setSimulatorDeviceCode("");
+              setScannedDeviceDetails(null);
+              setSelectedParking("");
+              setAnimVehiclePos(null);
+              setAnimTargetPos(null);
+              setAnimBounds(null);
+              setAnimMapCenter(null);
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 };

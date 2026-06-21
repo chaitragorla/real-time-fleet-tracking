@@ -133,3 +133,16 @@
 .animate-neon-pulse {
   animation: neon-pulse 3s infinite ease-in-out;
 }
+
+@keyframes drive-wiggle {
+  0% { transform: rotate(0deg) translateY(0); }
+  25% { transform: rotate(3deg) translateY(-2px); }
+  50% { transform: rotate(0deg) translateY(0); }
+  75% { transform: rotate(-3deg) translateY(-2px); }
+  100% { transform: rotate(0deg) translateY(0); }
+}
+
+.animate-drive-wiggle {
+  animation: drive-wiggle 0.5s infinite linear !important;
+  display: inline-block;
+}

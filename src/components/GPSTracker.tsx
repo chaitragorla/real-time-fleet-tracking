@@ -3,7 +3,7 @@ import { api } from '@/lib/api';
 import { toast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { MapPin, Play, Square, AlertCircle, Clock, Satellite, RotateCcw } from 'lucide-react';
+import { MapPin, AlertCircle, Satellite } from 'lucide-react';
 import DeviceRouteMap from './DeviceRouteMap';
 
 interface GPSTrackerProps {
@@ -22,32 +22,17 @@ interface LocationData {
 }
 
 const GPSTracker: React.FC<GPSTrackerProps> = ({ deviceCode, deviceName, deviceM2mNumber, isTrackingActive, onToggleTracking }) => {
-  // Load tracking state from localStorage
-  const getStoredTrackingState = () => {
-    try {
-      const stored = localStorage.getItem(`gps_tracking_${deviceCode}`);
-      return stored ? JSON.parse(stored) : { isTracking: false, sessionStart: null, totalPoints: 0 };
-    } catch {
-      return { isTracking: false, sessionStart: null, totalPoints: 0 };
-    }
-  };
-
   const [currentLocation, setCurrentLocation] = useState<LocationData | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
-  const [trackingStats, setTrackingStats] = useState(() => {
-    const stored = getStoredTrackingState();
-    return {
-      sessionStart: stored.sessionStart ? new Date(stored.sessionStart) : null,
-      totalPoints: stored.totalPoints || 0,
-      lastError: null as string | null
-    };
+  const [trackingStats, setTrackingStats] = useState({
+    sessionStart: null as Date | null,
+    totalPoints: 0,
+    lastError: null as string | null
   });
-  const [showManualInput, setShowManualInput] = useState(false);
-  const [manualLat, setManualLat] = useState('');
-  const [manualLng, setManualLng] = useState('');
   const [locationError, setLocationError] = useState<string | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const watchIdRef = useRef<number | null>(null);
+  const autoStartedRef = useRef(false);
 
   // Check if geolocation is supported
   const isGeolocationSupported = 'geolocation' in navigator;
@@ -64,15 +49,12 @@ const GPSTracker: React.FC<GPSTrackerProps> = ({ deviceCode, deviceName, deviceM
       if ('permissions' in navigator) {
         const permission = await navigator.permissions.query({ name: 'geolocation' });
         setPermissionStatus(permission.state);
-        console.log('GPS permission status:', permission.state);
 
         // Listen for permission changes
         permission.onchange = () => {
           setPermissionStatus(permission.state);
-          console.log('GPS permission changed to:', permission.state);
         };
       } else {
-        // Fallback: Try to get position to check if permission is granted
         (navigator as Navigator).geolocation.getCurrentPosition(
           () => setPermissionStatus('granted'),
           (error) => {
@@ -104,57 +86,39 @@ const GPSTracker: React.FC<GPSTrackerProps> = ({ deviceCode, deviceName, deviceM
         return;
       }
 
-      // First attempt with high accuracy disabled
       const attemptGeolocation = (highAccuracy: boolean, timeout: number) => {
         navigator.geolocation.getCurrentPosition(
           (position) => {
-            console.log('✅ GPS position obtained:', {
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-              accuracy: position.coords.accuracy,
-              highAccuracy
-            });
             resolve(position);
           },
           (error) => {
-            console.error('❌ Geolocation error details:', {
-              code: error.code,
-              message: error.message,
-              highAccuracy,
-              timeout
-            });
-
-            // If first attempt fails and we used low accuracy, try with high accuracy
             if (!highAccuracy && error.code === 2) {
-              console.log('🔄 Retrying with high accuracy...');
               attemptGeolocation(true, 30000);
               return;
             }
 
             let errorMessage = 'Unknown location error';
             switch (error.code) {
-              case 1: // PERMISSION_DENIED
-          errorMessage = 'GPS access denied. Please enable location permissions in your browser settings to use real GPS tracking.';
-          break;
-        case 2: // POSITION_UNAVAILABLE
-          errorMessage = 'GPS signal unavailable. This may happen indoors or in areas with poor GPS reception. Please move to an area with better GPS signal.';
-          break;
-        case 3: // TIMEOUT
-          errorMessage = 'GPS request timed out. Please try again or move to an area with better GPS signal.';
-          break;
+              case 1:
+                errorMessage = 'GPS access denied. Please enable location permissions in your browser settings.';
+                break;
+              case 2:
+                errorMessage = 'GPS signal unavailable. Please move to an area with better GPS reception.';
+                break;
+              case 3:
+                errorMessage = 'GPS request timed out. Please try again.';
+                break;
             }
-
             reject(new Error(errorMessage));
           },
           {
             enableHighAccuracy: highAccuracy,
             timeout: timeout,
-            maximumAge: highAccuracy ? 0 : 60000 // Use fresh location for high accuracy
+            maximumAge: highAccuracy ? 0 : 60000
           }
         );
       };
 
-      // Start with low accuracy for faster response
       attemptGeolocation(false, 10000);
     });
   };
@@ -204,8 +168,6 @@ const GPSTracker: React.FC<GPSTrackerProps> = ({ deviceCode, deviceName, deviceM
 
       setCurrentLocation(locationData);
       setLocationError(null);
-
-      // Send real GPS coordinates to backend
       await sendLocationToBackend(locationData);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown location error';
@@ -215,98 +177,33 @@ const GPSTracker: React.FC<GPSTrackerProps> = ({ deviceCode, deviceName, deviceM
         lastError: errorMessage
       }));
       console.error('Error getting location:', error);
-
-      toast({
-        title: "Location Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
     }
   };
 
-  // Modified startTracking
+  // Auto-start tracking
   const startTracking = async () => {
-    if (!isGeolocationSupported) {
-      toast({
-        title: "Not Supported",
-        description: "Geolocation is not supported by this browser.",
-        variant: "destructive",
-      });
-      return false;
-    }
-
-    // Check permission status before starting
-    await checkPermissionStatus();
-
-    if (permissionStatus === 'denied') {
-      toast({
-        title: "Permission Denied",
-        description: "GPS permission is denied. Please enable location access in your browser settings.",
-        variant: "destructive",
-      });
-      return false;
-    }
+    if (!isGeolocationSupported) return false;
 
     try {
-      toast({
-        title: "Requesting GPS Permission",
-        description: "Please allow location access when prompted.",
-      });
-
-      // Get initial position (this will trigger permission request if needed)
       await trackLocation();
 
-      // Update permission status after successful location access
-      await checkPermissionStatus();
-
-      // Only proceed if permission was actually granted
-      if (permissionStatus !== 'granted') {
-        throw new Error('GPS permission was not granted');
-      }
-
-      toast({
-        title: "GPS Tracking Started",
-        description: "Your real GPS location is now being tracked.",
-      });
-
-      // Set up interval for every 20 seconds
       intervalRef.current = setInterval(trackLocation, 20000);
 
-      const newStats = {
+      setTrackingStats({
         sessionStart: new Date(),
         totalPoints: 0,
         lastError: null
-      };
+      });
 
-      setTrackingStats(prev => ({ ...prev, ...newStats }));
-
-      return true; // Indicate successful start
+      return true;
     } catch (error) {
       console.error('Error starting tracking:', error);
-      await checkPermissionStatus();
-
-      let errorMessage = "Could not start GPS tracking.";
-      if (error instanceof Error) {
-        if (error.message.includes('denied')) {
-          errorMessage = "Location permission was denied. Please enable location access and try again.";
-        } else if (error.message.includes('timeout')) {
-          errorMessage = "GPS signal timeout. Please ensure you're in an area with good GPS reception.";
-        } else {
-          errorMessage = `GPS Error: ${error.message}`;
-        }
-      }
-
-      toast({
-        title: "Failed to Start",
-        description: errorMessage,
-        variant: "destructive",
-      });
-      return false; // Indicate failed start
+      return false;
     }
   };
 
-  // Modified stopTracking
-  const stopTracking = async () => {
+  // Stop tracking
+  const stopTracking = () => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
@@ -316,131 +213,43 @@ const GPSTracker: React.FC<GPSTrackerProps> = ({ deviceCode, deviceName, deviceM
       navigator.geolocation.clearWatch(watchIdRef.current);
       watchIdRef.current = null;
     }
-
-    setTrackingStats(prev => ({
-      ...prev,
-      sessionStart: null,
-      totalPoints: 0,
-      lastError: null
-    }));
-
-    toast({
-      title: "GPS Tracking Stopped",
-      description: "Location tracking has been disabled.",
-    });
   };
 
-  // Reset tracking and map data
-  const resetTracking = async () => {
-    // Stop current tracking
-    stopTracking();
-
-    try {
-      // Clear all GPS data from database
-      console.log('🗑️ Clearing GPS data for device:', deviceCode);
-      const response = await fetch(`http://localhost:3001/v1/gps-signal/device/${deviceCode}/clear`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        console.log('✅ GPS data cleared successfully:', result);
-        toast({
-          title: "GPS Data Cleared",
-          description: `Cleared ${result.deletedCount || 0} GPS tracking points from database.`,
-        });
-      } else {
-        console.error('❌ Failed to clear GPS data:', response.statusText);
-        toast({
-          title: "Warning",
-          description: "Could not clear GPS data from database. Map will still reset.",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error('❌ Error clearing GPS data:', error);
-      toast({
-        title: "Warning",
-        description: "Could not clear GPS data from database. Map will still reset.",
-        variant: "destructive",
-      });
-    }
-
-    // Clear current location and errors
-    setCurrentLocation(null);
-    setLocationError(null);
-    setLastUpdate(null);
-    const resetStats = {
-      sessionStart: null,
-      totalPoints: 0,
-      lastError: null
-    };
-    setTrackingStats(resetStats);
-
-    // Clear localStorage state
-    try {
-      localStorage.removeItem(`gps_tracking_${deviceCode}`);
-    } catch (error) {
-      console.error('Failed to clear tracking state from localStorage:', error);
-    }
-
-    // Clear manual input
-    setManualLat('');
-    setManualLng('');
-    setShowManualInput(false);
-
-    // Recheck permission status
-    await checkPermissionStatus();
-
-    toast({
-      title: "Tracking Reset",
-      description: "GPS tracking has been completely reset. You can start tracking from point 1 again.",
-    });
-  };
-
-  // Auto-start GPS tracking when isTrackingActive is true and GPS permission is available
+  // AUTO-START: Device automatically starts tracking on mount
   useEffect(() => {
-    const initializeTracking = async () => {
-      if (isTrackingActive && permissionStatus === 'granted') {
-        // If tracking should be active and GPS permission is granted, start tracking
-        console.log('Auto-starting GPS tracking - permission already granted');
-        const success = await startTracking();
-        if (!success) {
-          // If auto-start failed, update database to reflect actual state
-          onToggleTracking(false);
-        }
-      } else if (isTrackingActive && permissionStatus === 'prompt') {
-        // If tracking should be active but permission needs to be requested
-        console.log('GPS tracking requested but permission needed');
-        toast({
-          title: "GPS Permission Required",
-          description: "Please click 'Start Tracking' to enable GPS permission for location tracking.",
-          variant: "default",
-        });
+    const autoStart = async () => {
+      if (autoStartedRef.current) return;
+      autoStartedRef.current = true;
+
+      await checkPermissionStatus();
+
+      // Auto-start tracking and update database
+      const success = await startTracking();
+      if (success && !isTrackingActive) {
+        onToggleTracking(true);
       }
     };
 
-    initializeTracking();
+    autoStart();
 
     // Cleanup on unmount
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-      if (watchIdRef.current !== null) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-      }
+      stopTracking();
     };
-  }, [isTrackingActive, permissionStatus, deviceCode]);
+  }, [deviceCode]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Remove useEffect that syncs local state with backend is_active
-  // The buttons now control the tracking state directly.
+  // Re-attempt when permission changes to granted
+  useEffect(() => {
+    if (permissionStatus === 'granted' && !intervalRef.current) {
+      startTracking().then(success => {
+        if (success && !isTrackingActive) {
+          onToggleTracking(true);
+        }
+      });
+    }
+  }, [permissionStatus]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const formatTimestamp = (date: Date) => {
-    // Database now stores timestamps in IST, no timezone conversion needed
     return date.toLocaleString('en-IN', {
       year: 'numeric',
       month: 'short',
@@ -451,18 +260,9 @@ const GPSTracker: React.FC<GPSTrackerProps> = ({ deviceCode, deviceName, deviceM
     });
   };
 
-  const getSessionDuration = () => {
-    if (!trackingStats.sessionStart) return 'Not started';
-    const now = new Date();
-    const diff = now.getTime() - trackingStats.sessionStart.getTime();
-    const minutes = Math.floor(diff / 60000);
-    const seconds = Math.floor((diff % 60000) / 1000);
-    return `${minutes}m ${seconds}s`;
-  };
-
   return (
     <div className="space-y-6">
-      {/* GPS Tracker Controls */}
+      {/* GPS Status Card — No user controls, fully automatic */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -470,58 +270,21 @@ const GPSTracker: React.FC<GPSTrackerProps> = ({ deviceCode, deviceName, deviceM
             GPS Tracker - {deviceName || deviceCode}
           </CardTitle>
           <CardDescription>
-            Track your real GPS location for device monitoring
+            Automatic GPS tracking — device manages itself
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Control Buttons */}
+          {/* Auto Status Indicator */}
           <div className="flex items-center gap-3">
-            {!isTrackingActive ? (
-              <Button
-                onClick={async () => {
-                  // First try to start actual GPS tracking
-                  const success = await startTracking();
-                  // Only update database state if GPS tracking started successfully
-                  if (success) {
-                    onToggleTracking(true);
-                  }
-                }}
-                disabled={!isGeolocationSupported}
-                className="flex items-center gap-2"
-              >
-                <Play className="w-4 h-4" />
-                Start Tracking
-              </Button>
-            ) : (
-              <Button
-                onClick={async () => {
-                  // Stop actual GPS tracking first
-                  await stopTracking();
-                  // Then update database state
-                  onToggleTracking(false);
-                }}
-                variant="destructive"
-                className="flex items-center gap-2"
-              >
-                <Square className="w-4 h-4" />
-                Stop Tracking
-              </Button>
-            )}
-
-            <Button
-              onClick={resetTracking}
-              variant="outline"
-              className="flex items-center gap-2"
-              title="Reset tracking data"
-            >
-              <RotateCcw className="w-4 h-4" />
-              Reset
-            </Button>
-
-            <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm ${isTrackingActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
-              <div className={`w-2 h-2 rounded-full ${isTrackingActive ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
-              {isTrackingActive ? 'Tracking Active' : 'Tracking Inactive'}
+            <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold ${isTrackingActive ? 'bg-green-100 text-green-800 border border-green-300' : 'bg-blue-100 text-blue-800 border border-blue-300'}`}>
+              <div className={`w-3 h-3 rounded-full ${isTrackingActive ? 'bg-green-500 animate-pulse' : 'bg-blue-500'}`} />
+              {isTrackingActive ? '🚗 Moving — Auto Tracking' : '✅ Reached Destination'}
             </div>
+            {trackingStats.totalPoints > 0 && (
+              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                {trackingStats.totalPoints} points tracked
+              </span>
+            )}
           </div>
 
           {/* Geolocation Support Warning */}
@@ -553,25 +316,15 @@ const GPSTracker: React.FC<GPSTrackerProps> = ({ deviceCode, deviceName, deviceM
                       'text-gray-800'
                   }`}>
                   GPS Status: {
-                    permissionStatus === 'granted' ? 'Real GPS Active' :
-                      permissionStatus === 'denied' ? 'GPS Denied' :
-                        permissionStatus === 'prompt' ? 'GPS Permission Required' :
+                    permissionStatus === 'granted' ? '🟢 Real GPS Active — Auto Tracking' :
+                      permissionStatus === 'denied' ? '🔴 GPS Denied' :
+                        permissionStatus === 'prompt' ? '🔵 Awaiting GPS Permission' :
                           'Checking GPS...'
                   }
                 </span>
-                {permissionStatus === 'granted' && (
-                  <p className="text-xs text-green-700 mt-1">
-                    Using your real GPS location for accurate tracking.
-                  </p>
-                )}
                 {permissionStatus === 'denied' && (
                   <p className="text-xs text-red-700 mt-1">
-                    GPS access denied. Enable location access in browser settings for real GPS tracking.
-                  </p>
-                )}
-                {permissionStatus === 'prompt' && (
-                  <p className="text-xs text-blue-700 mt-1">
-                    Click "Start Tracking" to enable GPS permission for real location tracking.
+                    GPS access denied. Enable location access in browser settings for automatic tracking.
                   </p>
                 )}
               </div>
@@ -590,99 +343,14 @@ const GPSTracker: React.FC<GPSTrackerProps> = ({ deviceCode, deviceName, deviceM
 
           {/* Location Error Display */}
           {locationError && (
-            <div className="space-y-3">
-              <div className={`flex items-center gap-2 p-3 rounded-lg ${locationError.includes('denied')
-                ? 'bg-red-50 border border-red-200'
-                : 'bg-yellow-50 border border-yellow-200'
-                }`}>
-                <AlertCircle className={`w-5 h-5 ${locationError.includes('denied') ? 'text-red-600' : 'text-yellow-600'
-                  }`} />
-                <div className="flex-1">
-                  <span className={`text-sm ${locationError.includes('denied') ? 'text-red-800' : 'text-yellow-800'
-                    }`}>{locationError}</span>
-                  {!locationError.includes('denied') && (
-                    <p className="text-xs text-yellow-700 mt-1">
-                      Note: You can use manual location input as a fallback option.
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* Manual Location Input Fallback */}
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-blue-800">Manual Location Input</span>
-                  <Button
-                    onClick={() => setShowManualInput(!showManualInput)}
-                    variant="outline"
-                    size="sm"
-                  >
-                    {showManualInput ? 'Hide' : 'Use Manual Input'}
-                  </Button>
-                </div>
-
-                {showManualInput && (
-                  <div className="space-y-3 mt-3">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-xs font-medium text-blue-700">Latitude</label>
-                        <input
-                          type="number"
-                          step="any"
-                          placeholder="e.g., 16.2997"
-                          value={manualLat}
-                          onChange={(e) => setManualLat(e.target.value)}
-                          className="w-full px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-medium text-blue-700">Longitude</label>
-                        <input
-                          type="number"
-                          step="any"
-                          placeholder="e.g., 80.4573"
-                          value={manualLng}
-                          onChange={(e) => setManualLng(e.target.value)}
-                          className="w-full px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        />
-                      </div>
-                    </div>
-                    <Button
-                      onClick={() => {
-                        const lat = parseFloat(manualLat);
-                        const lng = parseFloat(manualLng);
-                        if (!isNaN(lat) && !isNaN(lng)) {
-                          const manualLocation: LocationData = {
-                            latitude: lat,
-                            longitude: lng,
-                            accuracy: 0,
-                            timestamp: Date.now()
-                          };
-                          setCurrentLocation(manualLocation);
-                          setLocationError(null);
-                          sendLocationToBackend(manualLocation);
-                          sendGPSData(manualLocation);
-                          toast({
-                            title: "Manual Location Set",
-                            description: `Location set to ${lat.toFixed(6)}, ${lng.toFixed(6)}`,
-                          });
-                        } else {
-                          toast({
-                            title: "Invalid Coordinates",
-                            description: "Please enter valid latitude and longitude values.",
-                            variant: "destructive",
-                          });
-                        }
-                      }}
-                      disabled={!manualLat || !manualLng}
-                      size="sm"
-                      className="w-full"
-                    >
-                      Set Manual Location
-                    </Button>
-                  </div>
-                )}
-              </div>
+            <div className={`flex items-center gap-2 p-3 rounded-lg ${locationError.includes('denied')
+              ? 'bg-red-50 border border-red-200'
+              : 'bg-yellow-50 border border-yellow-200'
+              }`}>
+              <AlertCircle className={`w-5 h-5 ${locationError.includes('denied') ? 'text-red-600' : 'text-yellow-600'}`} />
+              <span className={`text-sm ${locationError.includes('denied') ? 'text-red-800' : 'text-yellow-800'}`}>
+                {locationError}
+              </span>
             </div>
           )}
 

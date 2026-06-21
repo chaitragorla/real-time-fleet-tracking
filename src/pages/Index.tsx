@@ -45,7 +45,10 @@ const Index = () => {
                 <p className="text-xs text-cyan-400 font-medium tracking-wide uppercase">GPS Tracking Platform</p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
+              <Link to="/api-docs" className="text-sm font-medium text-cyan-400 hover:text-cyan-300 transition-colors mr-2">
+                API Docs
+              </Link>
               <Link to="/login">
                 <Button variant="outline" className="border-gray-800 text-gray-300 hover:text-white hover:bg-gray-900">Sign In</Button>
               </Link>
@@ -158,9 +161,14 @@ const Index = () => {
               </div>
               <p className="text-sm text-gray-400 font-medium">Traceify GPS Tracking</p>
             </div>
-            <p className="text-xs text-gray-500">
-              © {new Date().getFullYear()} Traceify. Premium GPS Track & Route Simulator. All rights reserved.
-            </p>
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+              <Link to="/api-docs" className="text-xs text-gray-400 hover:text-white transition-colors">
+                API Documentation
+              </Link>
+              <p className="text-xs text-gray-500">
+                © {new Date().getFullYear()} Chaitragorla. Premium GPS Track & Route Simulator. All rights reserved.
+              </p>
+            </div>
           </div>
         </div>
       </footer>

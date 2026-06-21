@@ -12,6 +12,7 @@ import CustomerDashboard from "./pages/CustomerDashboard";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import NotFound from "./pages/NotFound";
 import QRScanner from "./components/QRScanner";
+import ApiDocs from "./pages/ApiDocs";
 
 const queryClient = new QueryClient();
 
@@ -24,6 +25,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
+            <Route path="/api-docs" element={<ApiDocs />} />
             
             {/* Auth Routes - Protected from logged in users */}
             <Route 

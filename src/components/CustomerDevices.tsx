@@ -1,36 +1,72 @@
+import React, { useState, useEffect } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { api } from "@/lib/api";
+import { toast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  Smartphone,
+  RefreshCw,
+  Calendar,
+  CheckCircle,
+  MapPin,
+  Eye,
+  Satellite,
+  Edit2,
+  Check,
+  X,
+  Trash2,
+  Share2,
+} from "lucide-react";
+import DeviceRouteMap from "./DeviceRouteMap";
+import GPSTracker from "./GPSTracker";
+import SimulatorMap from "./SimulatorMap";
+import ConfirmationDialog from "./ConfirmationDialog";
+import QRCode from "qrcode";
 
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { api } from '@/lib/api';
-import { toast } from '@/hooks/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
-import { Smartphone, RefreshCw, Calendar, CheckCircle, MapPin, Eye, Satellite, Edit2, Check, X, Trash2, Share2 } from 'lucide-react';
-import DeviceRouteMap from './DeviceRouteMap';
-import GPSTracker from './GPSTracker';
-import ConfirmationDialog from './ConfirmationDialog';
-import QRCode from 'qrcode';
-
-const QRImage: React.FC<{ code: string; qrCodeData?: string | null }> = ({ code, qrCodeData }) => {
-  const [src, setSrc] = useState<string>('');
+const QRImage: React.FC<{ code: string; qrCodeData?: string | null }> = ({
+  code,
+  qrCodeData,
+}) => {
+  const [src, setSrc] = useState<string>("");
 
   useEffect(() => {
-    if (qrCodeData?.startsWith('data:image')) {
+    if (qrCodeData?.startsWith("data:image")) {
       setSrc(qrCodeData);
     } else {
       QRCode.toDataURL(code, {
         width: 120,
         margin: 1,
         color: {
-          dark: '#000000',
-          light: '#FFFFFF'
-        }
+          dark: "#000000",
+          light: "#FFFFFF",
+        },
       })
         .then(setSrc)
-        .catch(err => console.error('Error generating QR code:', err));
+        .catch((err) => console.error("Error generating QR code:", err));
     }
   }, [code, qrCodeData]);
 
@@ -69,9 +105,11 @@ const CustomerDevices = () => {
   const [devices, setDevices] = useState<Device[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
-  const [activeTab, setActiveTab] = useState<'route' | 'tracker'>('route');
+  const [activeTab, setActiveTab] = useState<"route" | "tracker" | "simulator">(
+    "route",
+  );
   const [editingDeviceId, setEditingDeviceId] = useState<number | null>(null);
-  const [editingDeviceName, setEditingDeviceName] = useState<string>('');
+  const [editingDeviceName, setEditingDeviceName] = useState<string>("");
   const [deleteDialog, setDeleteDialog] = useState<{
     open: boolean;
     deviceId: number | null;
@@ -80,16 +118,21 @@ const CustomerDevices = () => {
   }>({
     open: false,
     deviceId: null,
-    deviceName: '',
-    deviceCode: ''
+    deviceName: "",
+    deviceCode: "",
   });
   const [deleteAllDialog, setDeleteAllDialog] = useState(false);
   const [showTrackingDialog, setShowTrackingDialog] = useState(false);
   // Add state for share dialog
-  const [shareDialog, setShareDialog] = useState<{ open: boolean; device: Device | null }>({ open: false, device: null });
-  const [sharePhone, setSharePhone] = useState('');
+  const [shareDialog, setShareDialog] = useState<{
+    open: boolean;
+    device: Device | null;
+  }>({ open: false, device: null });
+  const [sharePhone, setSharePhone] = useState("");
   const [shareLoading, setShareLoading] = useState(false);
-  const [shareError, setShareError] = useState('');
+  const [shareError, setShareError] = useState("");
+  const [showSimulatorMap, setShowSimulatorMap] = useState(false);
+  const [simulatorDeviceCode, setSimulatorDeviceCode] = useState("");
 
   const fetchMyDevices = async () => {
     if (!user) return;
@@ -99,7 +142,7 @@ const CustomerDevices = () => {
       const { data } = await api.devices.byOwner(user.id);
       setDevices(data || []);
     } catch (error) {
-      console.error('Error fetching devices:', error);
+      console.error("Error fetching devices:", error);
       toast({
         title: "Error",
         description: "An unexpected error occurred.",
@@ -115,57 +158,61 @@ const CustomerDevices = () => {
   }, [user]);
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
   const handleDeviceNameDoubleClick = (device: Device) => {
     setEditingDeviceId(device.id);
-    setEditingDeviceName(device.device_name || '');
+    setEditingDeviceName(device.device_name || "");
   };
 
   const handleDeviceNameSave = async (deviceId: number) => {
     try {
-      await api.devices.updateById(deviceId, { device_name: editingDeviceName.trim() || null });
+      await api.devices.updateById(deviceId, {
+        device_name: editingDeviceName.trim() || null,
+      });
 
       // Update local state
-      setDevices(devices.map(device =>
-        device.id === deviceId
-          ? { ...device, device_name: editingDeviceName.trim() || null }
-          : device
-      ));
+      setDevices(
+        devices.map((device) =>
+          device.id === deviceId
+            ? { ...device, device_name: editingDeviceName.trim() || null }
+            : device,
+        ),
+      );
 
       toast({
-        title: 'Success',
-        description: 'Device name updated successfully.',
+        title: "Success",
+        description: "Device name updated successfully.",
       });
 
       setEditingDeviceId(null);
-      setEditingDeviceName('');
+      setEditingDeviceName("");
     } catch (error) {
-      console.error('Error updating device name:', error);
+      console.error("Error updating device name:", error);
       toast({
-        title: 'Error',
-        description: 'Failed to update device name. Please try again.',
-        variant: 'destructive',
+        title: "Error",
+        description: "Failed to update device name. Please try again.",
+        variant: "destructive",
       });
     }
   };
 
   const handleDeviceNameCancel = () => {
     setEditingDeviceId(null);
-    setEditingDeviceName('');
+    setEditingDeviceName("");
   };
 
   const handleKeyPress = (e: React.KeyboardEvent, deviceId: number) => {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       handleDeviceNameSave(deviceId);
-    } else if (e.key === 'Escape') {
+    } else if (e.key === "Escape") {
       handleDeviceNameCancel();
     }
   };
@@ -174,8 +221,8 @@ const CustomerDevices = () => {
     setDeleteDialog({
       open: true,
       deviceId: device.id,
-      deviceName: device.device_name || '',
-      deviceCode: device.device_code
+      deviceName: device.device_name || "",
+      deviceCode: device.device_code,
     });
   };
 
@@ -186,19 +233,24 @@ const CustomerDevices = () => {
       await api.gps.clear(deleteDialog.deviceCode);
       await api.devices.unassign(deleteDialog.deviceId);
       toast({
-        title: 'Success',
-        description: 'Device and its GPS data deleted successfully.',
+        title: "Success",
+        description: "Device and its GPS data deleted successfully.",
       });
       fetchMyDevices();
     } catch (error) {
-      console.error('Error deleting device:', error);
+      console.error("Error deleting device:", error);
       toast({
-        title: 'Error',
-        description: 'Failed to delete device.',
-        variant: 'destructive',
+        title: "Error",
+        description: "Failed to delete device.",
+        variant: "destructive",
       });
     } finally {
-      setDeleteDialog({ open: false, deviceId: null, deviceName: '', deviceCode: '' });
+      setDeleteDialog({
+        open: false,
+        deviceId: null,
+        deviceName: "",
+        deviceCode: "",
+      });
       setIsLoading(false);
     }
   };
@@ -207,19 +259,21 @@ const CustomerDevices = () => {
     if (!user || devices.length === 0) return;
     setIsLoading(true);
     try {
-      await Promise.all(devices.map((device) => api.gps.clear(device.device_code)));
+      await Promise.all(
+        devices.map((device) => api.gps.clear(device.device_code)),
+      );
       await api.devices.unassignAll(user.id);
       toast({
-        title: 'Success',
-        description: 'All devices deleted successfully.',
+        title: "Success",
+        description: "All devices deleted successfully.",
       });
       fetchMyDevices();
     } catch (error) {
-      console.error('Error deleting all devices:', error);
+      console.error("Error deleting all devices:", error);
       toast({
-        title: 'Error',
-        description: 'Failed to delete all devices.',
-        variant: 'destructive',
+        title: "Error",
+        description: "Failed to delete all devices.",
+        variant: "destructive",
       });
     } finally {
       setDeleteAllDialog(false);
@@ -230,24 +284,27 @@ const CustomerDevices = () => {
   // Device share handler
   const handleShareDevice = async () => {
     if (!shareDialog.device || !sharePhone.trim()) {
-      setShareError('Please enter a valid phone number.');
+      setShareError("Please enter a valid phone number.");
       return;
     }
 
     setShareLoading(true);
-    setShareError('');
+    setShareError("");
 
     try {
-      const response = await api.devices.share(shareDialog.device.device_code, sharePhone.trim());
+      const response = await api.devices.share(
+        shareDialog.device.device_code,
+        sharePhone.trim(),
+      );
       toast({
-        title: 'Success',
-        description: response.message || 'Device shared successfully.'
+        title: "Success",
+        description: response.message || "Device shared successfully.",
       });
       setShareDialog({ open: false, device: null });
-      setSharePhone('');
+      setSharePhone("");
     } catch (error) {
-      console.error('Error sharing device:', error);
-      setShareError('An unexpected error occurred. Please try again.');
+      console.error("Error sharing device:", error);
+      setShareError("An unexpected error occurred. Please try again.");
     } finally {
       setShareLoading(false);
     }
@@ -290,16 +347,16 @@ const CustomerDevices = () => {
           </CardContent>
         </Card>
 
-
-
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Devices</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Active Devices
+            </CardTitle>
             <CheckCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
-              {devices.filter(device => device.is_active).length}
+              {devices.filter((device) => device.is_active).length}
             </div>
           </CardContent>
         </Card>
@@ -348,9 +405,12 @@ const CustomerDevices = () => {
           {devices.length === 0 ? (
             <div className="text-center py-12">
               <Smartphone className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-600 mb-2">No Devices Found</h3>
+              <h3 className="text-lg font-semibold text-gray-600 mb-2">
+                No Devices Found
+              </h3>
               <p className="text-gray-500 mb-4">
-                You haven't added any devices yet. Use the "Add Device" section to get started.
+                You haven't added any devices yet. Use the "Add Device" section
+                to get started.
               </p>
             </div>
           ) : (
@@ -376,7 +436,9 @@ const CustomerDevices = () => {
                           <div className="flex items-center gap-2">
                             <Input
                               value={editingDeviceName}
-                              onChange={(e) => setEditingDeviceName(e.target.value)}
+                              onChange={(e) =>
+                                setEditingDeviceName(e.target.value)
+                              }
                               onKeyDown={(e) => handleKeyPress(e, device.id)}
                               placeholder="Enter device name"
                               className="h-8 text-sm"
@@ -402,12 +464,16 @@ const CustomerDevices = () => {
                         ) : (
                           <div
                             className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded group"
-                            onDoubleClick={() => handleDeviceNameDoubleClick(device)}
+                            onDoubleClick={() =>
+                              handleDeviceNameDoubleClick(device)
+                            }
                             title="Double-click to edit device name"
                           >
                             <span>
                               {device.device_name || (
-                                <span className="text-gray-400 italic">Unnamed Device</span>
+                                <span className="text-gray-400 italic">
+                                  Unnamed Device
+                                </span>
                               )}
                             </span>
                             <Edit2 className="h-3 w-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -419,11 +485,14 @@ const CustomerDevices = () => {
                       </TableCell>
 
                       <TableCell>
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${device.is_active
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-red-100 text-red-800'
-                          }`}>
-                          {device.is_active ? 'Active' : 'Inactive'}
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            device.is_active
+                              ? "bg-green-100 text-green-800"
+                              : "bg-blue-100 text-blue-800"
+                          }`}
+                        >
+                          {device.is_active ? "Moving" : "Reached Destination"}
                         </span>
                       </TableCell>
                       <TableCell>
@@ -436,7 +505,7 @@ const CustomerDevices = () => {
                           className="flex items-center gap-2"
                           onClick={() => {
                             setSelectedDevice(device);
-                            setActiveTab('tracker');
+                            setActiveTab("tracker");
                             setShowTrackingDialog(true);
                           }}
                         >
@@ -446,7 +515,10 @@ const CustomerDevices = () => {
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col items-center gap-2">
-                          <QRImage code={device.device_code} qrCodeData={device.qr_code} />
+                          <QRImage
+                            code={device.device_code}
+                            qrCodeData={device.qr_code}
+                          />
                         </div>
                       </TableCell>
                       <TableCell>
@@ -463,7 +535,9 @@ const CustomerDevices = () => {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => setShareDialog({ open: true, device })}
+                            onClick={() =>
+                              setShareDialog({ open: true, device })
+                            }
                             className="text-blue-600 hover:text-blue-700"
                             title="Share Device"
                           >
@@ -497,30 +571,40 @@ const CustomerDevices = () => {
       />
       <ConfirmationDialog
         open={shareDialog.open}
-        onOpenChange={(open) => setShareDialog({ open, device: open ? shareDialog.device : null })}
+        onOpenChange={(open) =>
+          setShareDialog({ open, device: open ? shareDialog.device : null })
+        }
         title="Share Device"
-        description={shareDialog.device ? `Share device '${shareDialog.device.device_name || shareDialog.device.device_code}' with another user by phone number.` : ''}
+        description={
+          shareDialog.device
+            ? `Share device '${shareDialog.device.device_name || shareDialog.device.device_code}' with another user by phone number.`
+            : ""
+        }
         onConfirm={handleShareDevice}
-        confirmText={shareLoading ? 'Sharing...' : 'Share'}
+        confirmText={shareLoading ? "Sharing..." : "Share"}
         confirmDisabled={shareLoading || !sharePhone}
       >
         <div className="space-y-4">
-          <label className="block text-sm font-medium text-gray-700">Recipient Phone Number</label>
+          <label className="block text-sm font-medium text-gray-700">
+            Recipient Phone Number
+          </label>
           <input
             type="text"
             value={sharePhone}
-            onChange={e => setSharePhone(e.target.value)}
+            onChange={(e) => setSharePhone(e.target.value)}
             placeholder="Enter recipient's phone number"
             className="w-full border rounded px-2 py-1"
             disabled={shareLoading}
           />
-          {shareError && <div className="text-red-600 text-sm">{shareError}</div>}
+          {shareError && (
+            <div className="text-red-600 text-sm">{shareError}</div>
+          )}
         </div>
       </ConfirmationDialog>
 
       {/* Central Tracking Dialog */}
       <Dialog open={showTrackingDialog} onOpenChange={setShowTrackingDialog}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto bg-gray-950 border-gray-900 text-white">
+        <DialogContent className="max-w-6xl w-[95vw] max-h-[90vh] overflow-y-scroll overscroll-contain bg-gray-950 border-gray-900 text-white">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between gap-4">
               <span className="flex items-center gap-2">
@@ -529,26 +613,35 @@ const CustomerDevices = () => {
               </span>
             </DialogTitle>
             <DialogDescription className="text-gray-400">
-              Select your vehicle, view its automatic QR code, monitor live locations, and verify parking status.
+              Select your vehicle, view its automatic QR code, monitor live
+              locations, and verify parking status.
             </DialogDescription>
           </DialogHeader>
 
           {/* Vehicle Selection Dropdown & QR Code Display */}
           <div className="flex flex-col md:flex-row items-center gap-6 bg-gray-900/40 p-4 border border-gray-800 rounded-xl mt-4">
             <div className="flex-1 w-full">
-              <label className="text-xs font-semibold text-gray-400 block mb-1">Select Active Vehicle</label>
+              <label className="text-xs font-semibold text-gray-400 block mb-1">
+                Select Active Vehicle
+              </label>
               <select
                 className="w-full bg-gray-950/60 border border-gray-800 rounded-lg p-2.5 text-white font-medium focus:ring-1 focus:ring-blue-500"
-                value={selectedDevice?.id || ''}
+                value={selectedDevice?.id || ""}
                 onChange={(e) => {
-                  const dev = devices.find(d => String(d.id) === e.target.value);
+                  const dev = devices.find(
+                    (d) => String(d.id) === e.target.value,
+                  );
                   if (dev) {
                     setSelectedDevice(dev);
                   }
                 }}
               >
-                {devices.map(d => (
-                  <option key={d.id} value={d.id} className="bg-gray-950 text-white">
+                {devices.map((d) => (
+                  <option
+                    key={d.id}
+                    value={d.id}
+                    className="bg-gray-950 text-white"
+                  >
                     {d.device_name || d.device_code} ({d.device_code})
                   </option>
                 ))}
@@ -557,10 +650,17 @@ const CustomerDevices = () => {
 
             {selectedDevice && (
               <div className="flex items-center gap-4 bg-gray-950/80 border border-gray-800 p-3 rounded-lg w-full md:w-auto self-stretch md:self-auto justify-center">
-                <QRImage code={selectedDevice.device_code} qrCodeData={selectedDevice.qr_code} />
+                <QRImage
+                  code={selectedDevice.device_code}
+                  qrCodeData={selectedDevice.qr_code}
+                />
                 <div className="text-left">
-                  <p className="text-xs font-bold text-gray-400">Automatic QR Code</p>
-                  <p className="text-xs font-mono text-cyan-400">{selectedDevice.device_code}</p>
+                  <p className="text-xs font-bold text-gray-400">
+                    Automatic QR Code
+                  </p>
+                  <p className="text-xs font-mono text-cyan-400">
+                    {selectedDevice.device_code}
+                  </p>
                 </div>
               </div>
             )}
@@ -571,11 +671,12 @@ const CustomerDevices = () => {
             <>
               <div className="flex border-b border-gray-800 mt-6">
                 <button
-                  onClick={() => setActiveTab('tracker')}
-                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'tracker'
-                    ? 'border-blue-500 text-blue-500 font-semibold'
-                    : 'border-transparent text-gray-400 hover:text-gray-200'
-                    }`}
+                  onClick={() => setActiveTab("tracker")}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === "tracker"
+                      ? "border-blue-500 text-blue-500 font-semibold"
+                      : "border-transparent text-gray-400 hover:text-gray-200"
+                  }`}
                 >
                   <div className="flex items-center gap-2">
                     <Satellite className="w-4 h-4" />
@@ -583,22 +684,50 @@ const CustomerDevices = () => {
                   </div>
                 </button>
                 <button
-                  onClick={() => setActiveTab('route')}
-                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'route'
-                    ? 'border-blue-500 text-blue-500 font-semibold'
-                    : 'border-transparent text-gray-400 hover:text-gray-200'
-                    }`}
+                  onClick={() => setActiveTab("route")}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === "route"
+                      ? "border-blue-500 text-blue-500 font-semibold"
+                      : "border-transparent text-gray-400 hover:text-gray-200"
+                  }`}
                 >
                   <div className="flex items-center gap-2">
                     <MapPin className="w-4 h-4" />
                     Route History
                   </div>
                 </button>
+                <button
+                  onClick={() => setActiveTab("simulator")}
+                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === "simulator"
+                      ? "border-blue-500 text-blue-400 font-semibold"
+                      : "border-transparent text-gray-400 hover:text-gray-200"
+                  }`}
+                >
+                  🚗 Live Simulator
+                </button>
               </div>
 
               {/* Tab Content */}
               <div className="mt-4 text-gray-800">
-                {activeTab === 'tracker' ? (
+                {activeTab === "simulator" ? (
+                  <div className="mt-4">
+                    <div
+                      style={{
+                        height: "500px",
+                        borderRadius: "12px",
+                        overflow: "hidden",
+                        border: "1px solid rgba(255,255,255,0.1)",
+                      }}
+                    >
+                      <SimulatorMap
+                        deviceCode={selectedDevice?.device_code}
+                        deviceIcon={selectedDevice?.device_icon || "car"}
+                        height="500px"
+                      />
+                    </div>
+                  </div>
+                ) : activeTab === "tracker" ? (
                   <GPSTracker
                     deviceCode={selectedDevice.device_code}
                     deviceName={selectedDevice.device_name || undefined}
@@ -607,18 +736,23 @@ const CustomerDevices = () => {
                     onToggleTracking={async (active) => {
                       setIsLoading(true);
                       try {
-                        await api.devices.updateById(selectedDevice.id, { is_active: active });
-                        toast({
-                          title: 'Success',
-                          description: `Tracking ${active ? 'started' : 'stopped'} successfully.`,
+                        await api.devices.updateById(selectedDevice.id, {
+                          is_active: active,
                         });
-                        setSelectedDevice({ ...selectedDevice, is_active: active });
+                        toast({
+                          title: "Success",
+                          description: `Tracking ${active ? "started" : "stopped"} successfully.`,
+                        });
+                        setSelectedDevice({
+                          ...selectedDevice,
+                          is_active: active,
+                        });
                         fetchMyDevices();
                       } catch (error) {
                         toast({
-                          title: 'Error',
-                          description: 'An unexpected error occurred.',
-                          variant: 'destructive',
+                          title: "Error",
+                          description: "An unexpected error occurred.",
+                          variant: "destructive",
                         });
                       } finally {
                         setIsLoading(false);
@@ -635,18 +769,23 @@ const CustomerDevices = () => {
                     onToggleTracking={async (active) => {
                       setIsLoading(true);
                       try {
-                        await api.devices.updateById(selectedDevice.id, { is_active: active });
-                        toast({
-                          title: 'Success',
-                          description: `Tracking ${active ? 'started' : 'stopped'} successfully.`,
+                        await api.devices.updateById(selectedDevice.id, {
+                          is_active: active,
                         });
-                        setSelectedDevice({ ...selectedDevice, is_active: active });
+                        toast({
+                          title: "Success",
+                          description: `Tracking ${active ? "started" : "stopped"} successfully.`,
+                        });
+                        setSelectedDevice({
+                          ...selectedDevice,
+                          is_active: active,
+                        });
                         fetchMyDevices();
                       } catch (error) {
                         toast({
-                          title: 'Error',
-                          description: 'An unexpected error occurred.',
-                          variant: 'destructive',
+                          title: "Error",
+                          description: "An unexpected error occurred.",
+                          variant: "destructive",
                         });
                       } finally {
                         setIsLoading(false);
@@ -659,6 +798,28 @@ const CustomerDevices = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Full-screen GPS Simulator overlay */}
+      {showSimulatorMap && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            background: "#0F172A",
+          }}
+        >
+          <SimulatorMap
+            deviceCode={simulatorDeviceCode}
+            deviceIcon={selectedDevice?.device_icon || "car"}
+            height="100vh"
+            onClose={() => {
+              setShowSimulatorMap(false);
+              setSimulatorDeviceCode("");
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 };

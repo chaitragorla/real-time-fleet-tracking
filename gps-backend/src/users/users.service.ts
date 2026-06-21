@@ -13,6 +13,8 @@ export interface LegacyUserDto {
   employee_id?: string;
   role: UserRole;
   created_at?: string | Date;
+  pass_name?: string;
+  pass_code?: string;
 }
 
 @Injectable()
@@ -85,6 +87,8 @@ export class UsersService {
     phoneNumber?: string;
     employeeId?: string;
     legacyId?: number;
+    passName?: string;
+    passCode?: string;
   }) {
     const existing = await this.findByEmailAndRole(input.email, input.role);
     if (existing) return existing;
@@ -97,6 +101,8 @@ export class UsersService {
       phoneNumber: input.phoneNumber ? formatPhoneNumber(input.phoneNumber) : undefined,
       role: input.role,
       employeeId: input.employeeId,
+      passName: input.passName,
+      passCode: input.passCode,
       createdAt: new Date(),
     });
   }
@@ -147,8 +153,8 @@ export class UsersService {
     };
   }
 
-  toLegacyUser(user: Partial<User> & { _id?: unknown }): LegacyUserDto {
-    return {
+  toLegacyUser(user: Partial<User> & { _id?: unknown }, isSuperAdmin = false): LegacyUserDto {
+    const dto: LegacyUserDto = {
       id: user.legacyId ?? String(user._id ?? ''),
       phone_number: user.phoneNumber ?? '',
       full_name: user.fullName ?? '',
@@ -157,6 +163,11 @@ export class UsersService {
       role: user.role ?? 'customer',
       created_at: user.createdAt,
     };
+    if (isSuperAdmin) {
+      dto.pass_name = user.passName;
+      dto.pass_code = user.passCode;
+    }
+    return dto;
   }
 
   private async nextLegacyId() {

@@ -19,6 +19,8 @@ import { DeviceSchema } from '../src/devices/schemas/device.schema';
 import { GpsDataSchema } from '../src/gps/schemas/gps-data.schema';
 import { OtpVerificationSchema } from '../src/auth/schemas/otp-verification.schema';
 
+import { JwtService } from '@nestjs/jwt';
+
 describe('NestJS compatibility API', () => {
   let app: INestApplication;
   const authService = {
@@ -55,6 +57,9 @@ describe('NestJS compatibility API', () => {
     deleteByLegacyId: jest.fn(),
     toLegacyUser: jest.fn((user) => user),
   };
+  const jwtService = {
+    verify: jest.fn(),
+  };
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -72,6 +77,7 @@ describe('NestJS compatibility API', () => {
         { provide: DevicesService, useValue: devicesService },
         { provide: SmsService, useValue: smsService },
         { provide: UsersService, useValue: usersService },
+        { provide: JwtService, useValue: jwtService },
         { provide: getConnectionToken(), useValue: { readyState: 1 } },
       ],
     })

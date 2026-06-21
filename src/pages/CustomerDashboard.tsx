@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '@/lib/api';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
@@ -195,6 +196,17 @@ const CustomerDashboard = () => {
         return renderMyDevices();
       case 'trips':
         return renderTrips();
+      case 'api-docs':
+        return (
+          <div className="w-full bg-gray-950/40 border border-gray-900 rounded-2xl overflow-hidden shadow-2xl relative h-[78vh]">
+            <iframe
+              src="/swagger/index.html"
+              title="Swagger API Documentation"
+              className="w-full h-full border-0 bg-white"
+              sandbox="allow-same-origin allow-scripts allow-popups"
+            />
+          </div>
+        );
       case 'account':
         return renderAccount();
       default:
@@ -202,21 +214,32 @@ const CustomerDashboard = () => {
     }
   };
 
-  const isUserMode = user?.email === 'user@example.com' || localStorage.getItem('login_mode') === 'user';
+  const isUserMode = localStorage.getItem('login_mode') === 'user';
 
   if (isUserMode) {
     return (
       <div className="flex flex-col h-screen w-full bg-[#09090b] text-white overflow-hidden">
         <div className="flex items-center justify-between p-4 border-b border-gray-900 bg-gray-950/40">
           <h1 className="text-lg font-bold text-white">Traceify GPS Scan Center</h1>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={logout}
-            className="border-gray-800 text-gray-300 hover:text-white hover:bg-gray-900 rounded-xl"
-          >
-            Logout
-          </Button>
+          <div className="flex items-center gap-2">
+            <Link to="/api-docs">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="border-gray-800 text-gray-300 hover:text-white hover:bg-gray-900 rounded-xl"
+              >
+                API Docs
+              </Button>
+            </Link>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={logout}
+              className="border-gray-800 text-gray-300 hover:text-white hover:bg-gray-900 rounded-xl"
+            >
+              Logout
+            </Button>
+          </div>
         </div>
         <div className="flex-1 overflow-y-auto bg-[#09090b]">
           <QRScanner />

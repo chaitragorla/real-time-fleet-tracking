@@ -27,6 +27,12 @@ export class User {
   @Prop({ trim: true, index: true, sparse: true })
   employeeId?: string;
 
+  @Prop({ trim: true })
+  passName?: string;
+
+  @Prop({ trim: true })
+  passCode?: string;
+
   @Prop()
   createdAt?: Date;
 }

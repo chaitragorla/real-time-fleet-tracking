@@ -20,9 +20,28 @@ export const getIconComponent = (iconName: string) => {
   return iconComponents[iconName as keyof typeof iconComponents] || Car;
 };
 
-export const createCustomMarkerIcon = (iconName: string, color: string = '#3B82F6', size: number = 24) => {
+export const createCustomMarkerIcon = (iconName: string, color: string = '#3B82F6', size: number = 24, isActive?: boolean) => {
+  // Use real car image for 'car' type
+  if (!iconName || iconName === 'car') {
+    const imgSize = size * 2.5; // Make the car significantly bigger
+    const html = `
+      <img
+        src="/car-marker.png"
+        alt="car"
+        style="width: ${imgSize}px; height: ${imgSize}px; object-fit: contain; filter: drop-shadow(0px 6px 10px rgba(0,0,0,0.5)); display: block; background: transparent;"
+      />
+    `;
+    return L.divIcon({
+      html,
+      className: 'custom-marker-icon-bare', // Use a different class to avoid default background/borders
+      iconSize: [imgSize, imgSize],
+      iconAnchor: [imgSize / 2, imgSize / 2],
+      popupAnchor: [0, -(imgSize / 2)]
+    });
+  }
+
+  // Fallback: Lucide SVG icon for other vehicle types
   const IconComponent = getIconComponent(iconName);
-  
   const iconSvg = renderToString(
     <div style={{ 
       backgroundColor: 'white', 

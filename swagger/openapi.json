@@ -1,0 +1,450 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Traceify GPS API",
+    "description": "Interactive testing playground and documentation for the Traceify NestJS + MongoDB GPS tracking backend. Make sure the backend server (default: http://localhost:3001) is running before using the 'Try it out' features.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3001",
+      "description": "Local NestJS Backend Server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Check API health and MongoDB connection status",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "ok" },
+                    "database": { "type": "string", "example": "connected" },
+                    "timestamp": { "type": "string", "example": "2026-06-14T05:50:00Z" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/send-otp": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Send OTP to user phone number",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["phoneNumber"],
+                "properties": {
+                  "phoneNumber": { "type": "string", "example": "9876543210" },
+                  "name": { "type": "string", "example": "Chaitra" },
+                  "role": { "type": "string", "example": "customer", "enum": ["customer", "admin", "superadmin"] }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OTP sent successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "OTP sent successfully" },
+                    "phoneNumber": { "type": "string", "example": "9876543210" },
+                    "userExists": { "type": "boolean", "example": true }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/verify-otp": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Verify OTP and return access/session token",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["phoneNumber", "otp"],
+                "properties": {
+                  "phoneNumber": { "type": "string", "example": "9876543210" },
+                  "otp": { "type": "string", "example": "123456" },
+                  "name": { "type": "string", "example": "Chaitra" },
+                  "role": { "type": "string", "example": "customer" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OTP verified successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "accessToken": { "type": "string", "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." },
+                    "sessionToken": { "type": "string", "example": "session_12345" },
+                    "user": { "type": "object" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/profile/{sessionToken}": {
+      "get": {
+        "tags": ["Authentication"],
+        "summary": "Get profile details via session token",
+        "parameters": [
+          {
+            "name": "sessionToken",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "example": "session_12345" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      },
+      "put": {
+        "tags": ["Authentication"],
+        "summary": "Update profile details via session token",
+        "parameters": [
+          {
+            "name": "sessionToken",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "example": "session_12345" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string", "example": "New Name" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Profile updated" }
+        }
+      }
+    },
+    "/v1/gps-signal/update-location": {
+      "post": {
+        "tags": ["GPS Signal"],
+        "summary": "Update a device's current GPS location",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["device_code", "device_m2m_number", "latitude", "longitude"],
+                "properties": {
+                  "device_code": { "type": "string", "example": "DEV001" },
+                  "device_m2m_number": { "type": "string", "example": "1234567890123" },
+                  "latitude": { "type": "number", "example": 12.9716 },
+                  "longitude": { "type": "number", "example": 77.5946 },
+                  "accuracy": { "type": "number", "example": 10 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Location updated successfully" }
+        }
+      }
+    },
+    "/v1/gps-signal/current-location": {
+      "get": {
+        "tags": ["GPS Signal"],
+        "summary": "Get latest registered location mapping",
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/v1/gps-signal/{device_code}": {
+      "get": {
+        "tags": ["GPS Signal"],
+        "summary": "Get active location status for a device",
+        "parameters": [
+          {
+            "name": "device_code",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "example": "DEV001" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/v1/gps-signal/{device_code}/history": {
+      "get": {
+        "tags": ["GPS Signal"],
+        "summary": "Get route history for a device",
+        "parameters": [
+          {
+            "name": "device_code",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "example": "DEV001" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/v1/gps-signal/device/{deviceCode}/data": {
+      "get": {
+        "tags": ["GPS Signal"],
+        "summary": "Get map points data for a device",
+        "parameters": [
+          {
+            "name": "deviceCode",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "example": "DEV001" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/v1/devices": {
+      "get": {
+        "tags": ["Devices"],
+        "summary": "List all registered devices",
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      },
+      "post": {
+        "tags": ["Devices"],
+        "summary": "Provision devices",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "count": { "type": "number", "example": 1 },
+                  "devices": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "device_code": { "type": "string" },
+                        "qr_code": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Created" }
+        }
+      }
+    },
+    "/v1/devices/active": {
+      "get": {
+        "tags": ["Devices"],
+        "summary": "Get active allocated devices",
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/v1/devices/code/{deviceCode}": {
+      "get": {
+        "tags": ["Devices"],
+        "summary": "Find a device by code",
+        "parameters": [
+          {
+            "name": "deviceCode",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "example": "DEV001" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/v1/devices/owner/{ownerId}": {
+      "get": {
+        "tags": ["Devices"],
+        "summary": "Get devices owned by a customer ID",
+        "parameters": [
+          {
+            "name": "ownerId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "example": "1" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      }
+    },
+    "/v1/devices/{deviceCode}/allocate": {
+      "post": {
+        "tags": ["Devices"],
+        "summary": "Allocate a device to a customer",
+        "parameters": [
+          {
+            "name": "deviceCode",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "example": "DEV001" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["allocated_to_customer_id", "allocated_to_customer_name"],
+                "properties": {
+                  "allocated_to_customer_id": { "type": "string", "example": "1" },
+                  "allocated_to_customer_name": { "type": "string", "example": "Chaitra" },
+                  "device_name": { "type": "string", "example": "Car GPS" },
+                  "device_icon": { "type": "string", "example": "car" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Allocated successfully" }
+        }
+      }
+    },
+    "/v1/devices/{deviceCode}/share": {
+      "post": {
+        "tags": ["Devices"],
+        "summary": "Share a device with another user's phone number",
+        "parameters": [
+          {
+            "name": "deviceCode",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "example": "DEV001" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["phone_number"],
+                "properties": {
+                  "phone_number": { "type": "string", "example": "9876543213" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Device shared successfully" }
+        }
+      }
+    },
+    "/v1/users": {
+      "get": {
+        "tags": ["Users"],
+        "summary": "List users by role",
+        "parameters": [
+          {
+            "name": "role",
+            "in": "query",
+            "schema": { "type": "string", "default": "customer" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Success" }
+        }
+      },
+      "post": {
+        "tags": ["Users"],
+        "summary": "Create a new user profile",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["phone_number"],
+                "properties": {
+                  "phone_number": { "type": "string", "example": "9876543210" },
+                  "full_name": { "type": "string", "example": "Chaitra" },
+                  "email": { "type": "string", "example": "chaitra@example.com" },
+                  "role": { "type": "string", "example": "customer" },
+                  "pass_name": { "type": "string", "example": "pass123" },
+                  "pass_code": { "type": "string", "example": "code456" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "User created" }
+        }
+      }
+    }
+  }
+}

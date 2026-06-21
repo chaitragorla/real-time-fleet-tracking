@@ -176,4 +176,79 @@ export const api = {
         method: 'DELETE',
       }),
   },
+
+  /**
+   * Simulator REST endpoints.
+   * These control the GPS simulation engine on the backend.
+   * When replacing the simulator with a real GPS device,
+   * only this section needs to change — the frontend (SimulatorMap) stays identical.
+   */
+  simulator: {
+    /** Start a simulation: { vehicleId, routeId, speedMultiplier?, updateIntervalMs? } */
+    start: (body: {
+      vehicleId: string;
+      routeId: string;
+      speedMultiplier?: number;
+      updateIntervalMs?: number;
+    }) =>
+      apiRequest<{ success: boolean; vehicle: unknown }>('/v1/simulator/start', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+
+    /** Stop a running simulation */
+    stop: (vehicleId: string) =>
+      apiRequest<{ success: boolean; message: string }>(`/v1/simulator/stop/${vehicleId}`, {
+        method: 'POST',
+      }),
+
+    /** Pause a running simulation (vehicle stays in memory) */
+    pause: (vehicleId: string) =>
+      apiRequest<{ success: boolean; vehicle: unknown }>(`/v1/simulator/pause/${vehicleId}`, {
+        method: 'POST',
+      }),
+
+    /** Resume a paused simulation */
+    resume: (vehicleId: string) =>
+      apiRequest<{ success: boolean; vehicle: unknown }>(`/v1/simulator/resume/${vehicleId}`, {
+        method: 'POST',
+      }),
+
+    /** Change speed multiplier without stopping the simulation */
+    changeSpeed: (vehicleId: string, multiplier: number) =>
+      apiRequest<{ success: boolean; vehicle: unknown }>(`/v1/simulator/${vehicleId}/speed`, {
+        method: 'PATCH',
+        body: JSON.stringify({ multiplier }),
+      }),
+
+    /** Reset the vehicle back to the beginning of its route */
+    reset: (vehicleId: string) =>
+      apiRequest<{ success: boolean; vehicle: unknown }>(`/v1/simulator/${vehicleId}/reset`, {
+        method: 'POST',
+      }),
+
+    /** Get current telemetry for all active simulated vehicles */
+    vehicles: () =>
+      apiRequest<{ success: boolean; count: number; vehicles: unknown[] }>('/v1/simulator/vehicles'),
+
+    /** Get current telemetry for a specific vehicle */
+    vehicleById: (vehicleId: string) =>
+      apiRequest<{ success: boolean; vehicle: unknown }>(`/v1/simulator/vehicles/${vehicleId}`),
+
+    /** Get only the current lat/lng/status (lightweight) */
+    currentLocation: (vehicleId: string) =>
+      apiRequest<{ success: boolean; location: unknown }>(`/v1/simulator/vehicles/${vehicleId}/location`),
+
+    /** Full telemetry history since the simulation started */
+    history: (vehicleId: string) =>
+      apiRequest<{ success: boolean; count: number; history: unknown[] }>(
+        `/v1/simulator/vehicles/${vehicleId}/history`,
+      ),
+
+    /** List all available predefined routes */
+    routes: () =>
+      apiRequest<{ success: boolean; routes: Array<{ id: string; name: string; description: string; distanceKm: number }> }>(
+        '/v1/simulator/routes',
+      ),
+  },
 };

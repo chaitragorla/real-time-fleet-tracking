@@ -11,7 +11,7 @@ import {
   SidebarHeader,
   SidebarFooter
 } from '@/components/ui/sidebar';
-import { User, Shield, LogOut, Plus, Smartphone, Compass } from 'lucide-react';
+import { User, Shield, LogOut, Plus, Smartphone, Compass, BookOpen } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 interface CustomerSidebarProps {
@@ -26,6 +26,7 @@ export function CustomerSidebar({ activeSection, onSectionChange }: CustomerSide
     { id: 'my-devices', title: 'My Devices', icon: Smartphone },
     { id: 'add-device', title: 'Add Device', icon: Plus },
     { id: 'trips', title: 'Trip History', icon: Compass },
+    { id: 'api-docs', title: 'API Documentation', icon: BookOpen },
     { id: 'account', title: 'Account Information', icon: User },
   ];
 

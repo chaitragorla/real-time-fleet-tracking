@@ -1,4 +1,4 @@
-# AddWise GPS Backend
+# Traceify GPS Backend
 
 NestJS + MongoDB backend for OTP authentication, device management, and GPS tracking.
 

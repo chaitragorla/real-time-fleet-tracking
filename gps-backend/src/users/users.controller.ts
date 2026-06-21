@@ -1,40 +1,67 @@
-import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, Req } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { UserRole } from './schemas/user.schema';
+import { Request } from 'express';
+import { JwtService } from '@nestjs/jwt';
 
 @Controller('v1/users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly jwtService: JwtService,
+  ) {}
+
+  private checkSuperAdmin(req: Request): boolean {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return false;
+      }
+      const token = authHeader.substring(7);
+      const payload = this.jwtService.verify(token);
+      return payload?.role === 'superadmin';
+    } catch {
+      return false;
+    }
+  }
 
   @Get()
-  async list(@Query('role') role?: UserRole) {
+  async list(@Req() req: Request, @Query('role') role?: UserRole) {
+    const isSuperAdmin = this.checkSuperAdmin(req);
     const users = await this.usersService.list(role);
     return {
       success: true,
       count: users.length,
-      data: users.map((user) => this.usersService.toLegacyUser(user)),
+      data: users.map((user) => this.usersService.toLegacyUser(user, isSuperAdmin)),
     };
   }
 
   @Get('by-phone/:phoneNumber')
-  async byPhone(@Param('phoneNumber') phoneNumber: string, @Query('role') role?: UserRole) {
+  async byPhone(@Req() req: Request, @Param('phoneNumber') phoneNumber: string, @Query('role') role?: UserRole) {
+    const isSuperAdmin = this.checkSuperAdmin(req);
     const user = await this.usersService.findByPhone(phoneNumber, role);
     return {
       success: Boolean(user),
-      data: user ? this.usersService.toLegacyUser(user) : null,
+      data: user ? this.usersService.toLegacyUser(user, isSuperAdmin) : null,
     };
   }
 
   @Post()
-  async create(@Body() body: {
-    email: string;
-    passwordHash: string;
-    phone_number?: string;
-    full_name?: string;
-    name?: string;
-    role?: UserRole;
-    employee_id?: string;
-  }) {
+  async create(
+    @Req() req: Request,
+    @Body() body: {
+      email: string;
+      passwordHash: string;
+      phone_number?: string;
+      full_name?: string;
+      name?: string;
+      role?: UserRole;
+      employee_id?: string;
+      pass_name?: string;
+      pass_code?: string;
+    },
+  ) {
+    const isSuperAdmin = this.checkSuperAdmin(req);
     const user = await this.usersService.create({
       email: body.email,
       passwordHash: body.passwordHash,
@@ -42,8 +69,10 @@ export class UsersController {
       fullName: body.full_name || body.name || `User_${body.email.split('@')[0]}`,
       role: body.role || 'customer',
       employeeId: body.employee_id,
+      passName: body.pass_name,
+      passCode: body.pass_code,
     });
-    return { success: true, data: this.usersService.toLegacyUser(user) };
+    return { success: true, data: this.usersService.toLegacyUser(user, isSuperAdmin) };
   }
 
   @Get('login-logs')
