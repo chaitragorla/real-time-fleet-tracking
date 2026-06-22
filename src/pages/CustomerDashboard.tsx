@@ -222,15 +222,17 @@ const CustomerDashboard = () => {
         <div className="flex items-center justify-between p-4 border-b border-gray-900 bg-gray-950/40">
           <h1 className="text-lg font-bold text-white">Traceify GPS Scan Center</h1>
           <div className="flex items-center gap-2">
-            <Link to="/api-docs">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="border-gray-800 text-gray-300 hover:text-white hover:bg-gray-900 rounded-xl"
-              >
-                API Docs
-              </Button>
-            </Link>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => {
+                localStorage.setItem('login_mode', 'customer');
+                window.location.reload();
+              }}
+              className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 hover:text-cyan-300 rounded-xl"
+            >
+              Switch to Dashboard
+            </Button>
             <Button 
               variant="outline" 
               size="sm" 
@@ -256,9 +258,22 @@ const CustomerDashboard = () => {
           onSectionChange={setActiveSection}
         />
         <SidebarInset className="flex-1 bg-[#09090b] flex flex-col h-full overflow-hidden">
-          <div className="flex items-center gap-2 p-4 border-b border-gray-900 bg-gray-950/40">
-            <SidebarTrigger className="text-gray-400 hover:text-white" />
-            <h1 className="text-lg font-bold text-white">Traceify GPS Tracking</h1>
+          <div className="flex items-center justify-between p-4 border-b border-gray-900 bg-gray-950/40">
+            <div className="flex items-center gap-2">
+              <SidebarTrigger className="text-gray-400 hover:text-white" />
+              <h1 className="text-lg font-bold text-white">Traceify GPS Tracking</h1>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => {
+                localStorage.setItem('login_mode', 'user');
+                window.location.reload();
+              }}
+              className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 hover:text-cyan-300 rounded-xl"
+            >
+              Switch to Scanner Mode
+            </Button>
           </div>
           <div className="p-6 flex-1 overflow-y-auto">
             {renderContent()}

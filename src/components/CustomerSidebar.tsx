@@ -26,7 +26,6 @@ export function CustomerSidebar({ activeSection, onSectionChange }: CustomerSide
     { id: 'my-devices', title: 'My Devices', icon: Smartphone },
     { id: 'add-device', title: 'Add Device', icon: Plus },
     { id: 'trips', title: 'Trip History', icon: Compass },
-    { id: 'api-docs', title: 'API Documentation', icon: BookOpen },
     { id: 'account', title: 'Account Information', icon: User },
   ];
 
