@@ -225,7 +225,7 @@ const DeviceManagement = () => {
   const takenDevices = devices.filter(device => device.allocated_to_customer_id !== null);
   const notTakenDevices = devices.filter(device => device.allocated_to_customer_id === null);
 
-  const DeviceTable = ({ devices: deviceList, title }: { devices: Device[], title: string }) => (
+  const DeviceTable = ({ devices: deviceList, title, showAllocation = false }: { devices: Device[], title: string, showAllocation?: boolean }) => (
     <Card className="bg-gray-900/40 border-gray-800 shadow-xl backdrop-blur-md">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-white">
@@ -242,7 +242,8 @@ const DeviceManagement = () => {
                 <TableHead className="text-gray-400 font-semibold">M2M Number</TableHead>
                 <TableHead className="text-gray-400 font-semibold">Status</TableHead>
                 <TableHead className="text-gray-400 font-semibold">Created At</TableHead>
-                {title.includes('Taken') && <TableHead className="text-gray-400 font-semibold">Allocated To</TableHead>}                {title.includes('Taken') && <TableHead className="text-gray-400 font-semibold">Allocated At</TableHead>}
+                {showAllocation && <TableHead className="text-gray-400 font-semibold">Allocated To</TableHead>}
+                {showAllocation && <TableHead className="text-gray-400 font-semibold">Allocated At</TableHead>}
                 <TableHead className="text-center text-gray-400 font-semibold">QR Code</TableHead>
                 <TableHead className="text-gray-400 font-semibold">Actions</TableHead>
               </TableRow>
@@ -348,12 +349,12 @@ const DeviceManagement = () => {
                   <TableCell className="text-gray-300">
                     {new Date(device.created_at).toLocaleDateString('en-IN')}
                   </TableCell>
-                  {title.includes('Taken') && (
+                  {showAllocation && (
                     <TableCell className="font-medium text-white">
                       {device.allocated_to_customer_name || <span className="text-gray-500">N/A</span>}
                     </TableCell>
                   )}
-                  {title.includes('Taken') && (
+                  {showAllocation && (
                     <TableCell className="text-gray-300">
                       {device.allocated_at 
                         ? new Date(device.allocated_at).toLocaleDateString('en-IN')
@@ -367,10 +368,10 @@ const DeviceManagement = () => {
                         <img 
                           src={qrCodes[device.device_code]} 
                           alt={`QR Code for ${device.device_code}`}
-                          className="border border-gray-700 rounded bg-white p-1"
+                          className="border border-gray-700 rounded bg-white p-1 w-[100px] h-[100px]"
                         />
                       ) : (
-                        <div className="w-[120px] h-[120px] border border-gray-700 rounded flex items-center justify-center bg-gray-800">
+                        <div className="w-[100px] h-[100px] border border-gray-700 rounded flex items-center justify-center bg-gray-800">
                           <span className="text-gray-500 text-xs">Loading...</span>
                         </div>
                       )}
@@ -481,11 +482,11 @@ const DeviceManagement = () => {
         </TabsList>
 
         <TabsContent value="not-taken">
-          <DeviceTable devices={notTakenDevices} title="Not Taken Devices" />
+          <DeviceTable devices={notTakenDevices} title="Not Taken Devices" showAllocation={false} />
         </TabsContent>
 
         <TabsContent value="taken">
-          <DeviceTable devices={takenDevices} title="Taken Devices" />
+          <DeviceTable devices={takenDevices} title="Taken Devices" showAllocation={true} />
         </TabsContent>
       </Tabs>
 
