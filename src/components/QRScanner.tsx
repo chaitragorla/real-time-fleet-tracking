@@ -885,6 +885,9 @@ const QRScanner = () => {
           </div>
         </div>
 
+        {/* Testing / Demo Section */}
+        <TestDevicesPanel onSelectCode={(code) => setDeviceCode(code)} />
+
         {/* Help Section */}
         <div className="bg-blue-50 rounded-2xl p-6">
           <h3 className="font-semibold text-blue-900 mb-3 flex items-center">
@@ -1452,6 +1455,114 @@ const QRScanner = () => {
             }}
           />
         </div>
+      )}
+    </div>
+  );
+};
+
+const TestDevicesPanel = ({ onSelectCode }: { onSelectCode: (code: string) => void }) => {
+  const [unallocated, setUnallocated] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedQR, setSelectedQR] = useState<{ code: string; qr: string } | null>(null);
+
+  const fetchUnallocated = async () => {
+    setIsLoading(true);
+    try {
+      const response = await api.devices.list();
+      const allDevices = response.data || [];
+      const filtered = allDevices.filter((d: any) => d.allocated_to_customer_id === null);
+      setUnallocated(filtered);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUnallocated();
+  }, []);
+
+  if (unallocated.length === 0) {
+    return (
+      <div className="bg-amber-500/10 rounded-2xl p-6 mb-6 border border-amber-500/25">
+        <h3 className="font-semibold text-amber-400 mb-2 flex items-center gap-2">
+          <span>⚠️</span> No Test Devices Available
+        </h3>
+        <p className="text-sm text-gray-300">
+          Please log in as <strong>Super Admin</strong> first, go to the <strong>Devices</strong> tab, and generate some devices.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-gray-900/40 border border-gray-800 rounded-2xl p-6 mb-6 backdrop-blur-md">
+      <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
+        <span>🧪</span>
+        Testing & Demo Devices
+      </h3>
+      <p className="text-xs text-gray-400 mb-4">
+        Since you are running in a simulator/web environment, use these generated hardware codes to test. Click a code to auto-fill it, or click "View QR" to scan it with your camera.
+      </p>
+      <div className="space-y-3">
+        {unallocated.slice(0, 3).map((dev) => (
+          <div key={dev.id} className="flex items-center justify-between bg-gray-950/60 p-3 rounded-xl border border-gray-800 shadow-sm">
+            <div>
+              <span className="text-[10px] font-semibold text-gray-500 block uppercase">Device Code</span>
+              <span className="font-mono text-sm font-bold text-cyan-400">{dev.device_code}</span>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 rounded-lg text-xs border-gray-800 text-gray-300 hover:text-white"
+                onClick={() => {
+                  setSelectedQR({ code: dev.device_code, qr: dev.qr_code });
+                }}
+              >
+                View QR
+              </Button>
+              <Button
+                size="sm"
+                className="h-8 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold"
+                onClick={() => onSelectCode(dev.device_code)}
+              >
+                Auto Fill
+              </Button>
+            </div>
+          </div>
+        ))}
+        {unallocated.length > 3 && (
+          <p className="text-[10px] text-gray-500 text-center mt-2">
+            + {unallocated.length - 3} more unallocated devices available in system
+          </p>
+        )}
+      </div>
+
+      {selectedQR && (
+        <Dialog open={!!selectedQR} onOpenChange={() => setSelectedQR(null)}>
+          <DialogContent className="max-w-xs bg-gray-950 border border-gray-900 text-white rounded-2xl p-6 flex flex-col items-center">
+            <DialogHeader className="text-center w-full">
+              <DialogTitle className="text-lg font-bold text-white">Scan QR Code</DialogTitle>
+              <DialogDescription className="text-xs text-gray-400 mt-1">
+                Point your camera at this QR code to scan it.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="my-6 p-3 border border-gray-800 rounded-xl bg-white shadow-sm flex flex-col items-center">
+              <QRImage code={selectedQR.code} qrCodeData={selectedQR.qr} />
+              <span className="font-mono text-xs text-gray-500 mt-2">{selectedQR.code}</span>
+            </div>
+            <DialogFooter className="w-full">
+              <Button onClick={() => {
+                onSelectCode(selectedQR.code);
+                setSelectedQR(null);
+              }} className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl">
+                Auto Fill Code
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );
