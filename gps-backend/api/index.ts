@@ -1,19 +1,16 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../src/app.module';
-import { ExpressAdapter } from '@nestjs/platform-express';
-import express from 'express';
 import compression from 'compression';
 import helmet from 'helmet';
 import { ValidationPipe } from '@nestjs/common';
 import { AllExceptionsFilter } from '../src/common/filters/all-exceptions.filter';
 
-let cachedServer: any;
+let cachedApp: any;
 
 async function bootstrapServer() {
-  if (!cachedServer) {
-    const expressApp = express();
-    const app = await NestFactory.create(AppModule, new ExpressAdapter(expressApp));
+  if (!cachedApp) {
+    const app = await NestFactory.create(AppModule);
 
     app.enableCors();
     app.use(helmet({ contentSecurityPolicy: false }));
@@ -28,12 +25,13 @@ async function bootstrapServer() {
     app.useGlobalFilters(new AllExceptionsFilter());
 
     await app.init();
-    cachedServer = expressApp;
+    cachedApp = app;
   }
-  return cachedServer;
+  return cachedApp;
 }
 
 export default async function (req: any, res: any) {
-  const server = await bootstrapServer();
-  return server(req, res);
+  const app = await bootstrapServer();
+  const instance = app.getHttpAdapter().getInstance();
+  return instance(req, res);
 }
