@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,11 @@ import { toast } from '@/hooks/use-toast';
 import { User, ArrowLeft, Phone, Mail, Lock } from 'lucide-react';
 
 const Signup = () => {
+  const [searchParams] = useSearchParams();
+  const roleParam = searchParams.get('role') || 'customer';
+  const role = roleParam === 'superadmin' ? 'superadmin' : 'customer';
+  const isSuperAdmin = role === 'superadmin';
+
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -40,7 +45,7 @@ const Signup = () => {
       return;
     }
 
-    const success = await signup(form);
+    const success = await signup(form, role);
 
     if (success) {
       toast({
@@ -57,14 +62,21 @@ const Signup = () => {
     }
   };
 
+  const ringColor = isSuperAdmin ? 'focus-visible:ring-violet-500' : 'focus-visible:ring-cyan-500';
+  const textColorClass = isSuperAdmin ? 'text-violet-400 hover:text-violet-300' : 'text-cyan-400 hover:text-cyan-300';
+  const glowBorderClass = isSuperAdmin ? 'glow-border-violet' : 'glow-border-neon';
+  const buttonBgClass = isSuperAdmin ? 'bg-gradient-to-r from-violet-600 to-fuchsia-600' : 'bg-neon-gradient';
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#09090b] bg-neon-radial p-4 relative overflow-hidden">
       <div className="absolute inset-0 bg-[#09090b]/40 backdrop-blur-[2px]" />
       <div className="w-full max-w-md relative z-10">
-        <Card className="shadow-2xl border-gray-800 bg-gray-900/40 backdrop-blur-md glow-border-neon">
+        <Card className={`shadow-2xl border-gray-800 bg-gray-900/40 backdrop-blur-md ${glowBorderClass}`}>
           <CardHeader className="text-center">
             <CardTitle className="text-2xl font-bold text-white">Create Account</CardTitle>
-            <CardDescription className="text-gray-400">Join Traceify as a customer</CardDescription>
+            <CardDescription className="text-gray-400">
+              Join Traceify as a {isSuperAdmin ? 'super admin' : 'customer'}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -76,7 +88,7 @@ const Signup = () => {
                     id="name"
                     type="text"
                     placeholder="John Doe"
-                    className="pl-10 bg-gray-950/40 border-gray-800 focus-visible:ring-cyan-500 text-white placeholder-gray-600 rounded-xl"
+                    className={`pl-10 bg-gray-950/40 border-gray-800 ${ringColor} text-white placeholder-gray-600 rounded-xl`}
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
                     required
@@ -92,7 +104,7 @@ const Signup = () => {
                     id="email"
                     type="email"
                     placeholder="john@example.com"
-                    className="pl-10 bg-gray-950/40 border-gray-800 focus-visible:ring-cyan-500 text-white placeholder-gray-600 rounded-xl"
+                    className={`pl-10 bg-gray-950/40 border-gray-800 ${ringColor} text-white placeholder-gray-600 rounded-xl`}
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
                     required
@@ -108,7 +120,7 @@ const Signup = () => {
                     id="phone"
                     type="tel"
                     placeholder="+91 98765 43210"
-                    className="pl-10 bg-gray-950/40 border-gray-800 focus-visible:ring-cyan-500 text-white placeholder-gray-600 rounded-xl"
+                    className={`pl-10 bg-gray-950/40 border-gray-800 ${ringColor} text-white placeholder-gray-600 rounded-xl`}
                     value={form.phone_number}
                     onChange={(e) => setForm({ ...form, phone_number: e.target.value })}
                   />
@@ -123,7 +135,7 @@ const Signup = () => {
                     id="password"
                     type="password"
                     placeholder="••••••••"
-                    className="pl-10 bg-gray-950/40 border-gray-800 focus-visible:ring-cyan-500 text-white placeholder-gray-600 rounded-xl"
+                    className={`pl-10 bg-gray-950/40 border-gray-800 ${ringColor} text-white placeholder-gray-600 rounded-xl`}
                     value={form.password}
                     onChange={(e) => setForm({ ...form, password: e.target.value })}
                     required
@@ -139,7 +151,7 @@ const Signup = () => {
                     id="confirm_password"
                     type="password"
                     placeholder="••••••••"
-                    className="pl-10 bg-gray-950/40 border-gray-800 focus-visible:ring-cyan-500 text-white placeholder-gray-600 rounded-xl"
+                    className={`pl-10 bg-gray-950/40 border-gray-800 ${ringColor} text-white placeholder-gray-600 rounded-xl`}
                     value={form.confirm_password}
                     onChange={(e) => setForm({ ...form, confirm_password: e.target.value })}
                     required
@@ -149,7 +161,7 @@ const Signup = () => {
 
               <Button
                 type="submit"
-                className="w-full bg-neon-gradient hover:opacity-90 text-white border-0 font-semibold py-6 rounded-xl"
+                className={`w-full ${buttonBgClass} hover:opacity-90 text-white border-0 font-semibold py-6 rounded-xl`}
                 disabled={isLoading}
               >
                 {isLoading ? 'Creating Account...' : 'Create Account'}
@@ -159,7 +171,7 @@ const Signup = () => {
             <div className="mt-6 text-center">
               <Link
                 to="/login"
-                className="inline-flex items-center gap-2 text-sm text-cyan-400 hover:text-cyan-300 transition-colors underline"
+                className={`inline-flex items-center gap-2 text-sm ${textColorClass} transition-colors underline`}
               >
                 <ArrowLeft className="w-4 h-4" />
                 Back to Sign In

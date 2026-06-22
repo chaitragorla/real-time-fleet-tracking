@@ -178,6 +178,14 @@ const Login = () => {
                     {isLoading ? 'Signing in...' : 'Sign In as Super Admin'}
                   </Button>
                 </form>
+                <div className="text-center pt-2">
+                  <Link
+                    to="/signup?role=superadmin"
+                    className="text-sm text-violet-400 hover:text-violet-300 transition-colors underline block"
+                  >
+                    Don't have an account? Sign up
+                  </Link>
+                </div>
               </TabsContent>
             </Tabs>
           </CardContent>

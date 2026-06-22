@@ -14,7 +14,7 @@ interface AuthContextType {
   user: User | null;
   login: (email: string, password: string, role: UserRole) => Promise<boolean>;
   logout: () => void;
-  signup: (userData: { email: string; password: string; name: string; phone_number?: string }) => Promise<boolean>;
+  signup: (userData: { email: string; password: string; name: string; phone_number?: string }, role?: UserRole) => Promise<boolean>;
   isLoading: boolean;
 }
 
@@ -75,7 +75,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signup = async (userData: { email: string; password: string; name: string; phone_number?: string }): Promise<boolean> => {
+  const signup = async (userData: { email: string; password: string; name: string; phone_number?: string }, role: UserRole = 'customer'): Promise<boolean> => {
     setIsLoading(true);
     try {
       const result = await api.auth.register({
@@ -83,7 +83,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         password: userData.password,
         fullName: userData.name,
         phone_number: userData.phone_number,
-        role: 'customer',
+        role: role,
       });
       if (!result.success || !result.user) return false;
       return true;
