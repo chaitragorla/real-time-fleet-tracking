@@ -7,11 +7,10 @@ import { CustomerSidebar } from '../components/CustomerSidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Shield, MapPin } from 'lucide-react';
+import { Shield } from 'lucide-react';
 import QRScanner from '../components/QRScanner';
 import CustomerDevices from '../components/CustomerDevices';
 import TripHistory from '../components/TripHistory';
-import SimulatorMap from '../components/SimulatorMap';
 
 import ConfirmationDialog from '../components/ConfirmationDialog';
 import { toast } from '@/hooks/use-toast';
@@ -22,9 +21,6 @@ const CustomerDashboard = () => {
   const [customerData, setCustomerData] = useState<any>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
-  const [showLiveMap, setShowLiveMap] = useState(false);
-  const [liveDeviceCode, setLiveDeviceCode] = useState('');
-  const [liveDeviceIcon, setLiveDeviceIcon] = useState('car');
 
   useEffect(() => {
     if (user) {
@@ -216,35 +212,6 @@ const CustomerDashboard = () => {
     }
   };
 
-  const handleTrackLive = async () => {
-    if (!user) return;
-    try {
-      const { data: devices } = await api.devices.list();
-      const myDevices = (devices || []).filter(
-        (d: any) => d.allocated_to_customer_id?.toString() === user.id?.toString()
-      );
-      if (myDevices.length === 0) {
-        toast({
-          title: "No Devices",
-          description: "You don't have any devices yet. Please add a device first.",
-          variant: "destructive",
-        });
-        return;
-      }
-      const device = myDevices[0];
-      setLiveDeviceCode(device.device_code);
-      setLiveDeviceIcon(device.device_icon || 'car');
-      setShowLiveMap(true);
-    } catch (error) {
-      console.error('Error fetching devices:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch your devices. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
   return (
     <SidebarProvider>
       <div className="flex h-screen w-full bg-[#09090b]">
@@ -258,43 +225,12 @@ const CustomerDashboard = () => {
               <SidebarTrigger className="text-gray-400 hover:text-white" />
               <h1 className="text-lg font-bold text-white">Traceify GPS Tracking</h1>
             </div>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={handleTrackLive}
-              className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300 rounded-xl flex items-center gap-2"
-            >
-              <MapPin className="w-4 h-4" />
-              Track Live
-            </Button>
           </div>
           <div className="p-6 flex-1 overflow-y-auto">
             {renderContent()}
           </div>
         </SidebarInset>
       </div>
-
-      {/* Full-screen Live Tracking Map overlay */}
-      {showLiveMap && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 9999,
-            background: "#0F172A",
-          }}
-        >
-          <SimulatorMap
-            deviceCode={liveDeviceCode}
-            deviceIcon={liveDeviceIcon}
-            height="100vh"
-            onClose={() => {
-              setShowLiveMap(false);
-              setLiveDeviceCode('');
-            }}
-          />
-        </div>
-      )}
     </SidebarProvider>
   );
 };
