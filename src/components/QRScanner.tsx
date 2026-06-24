@@ -103,9 +103,7 @@ const QRScanner = ({ mode = 'track' }: { mode?: 'add' | 'track' }) => {
   const { user } = useAuth();
   const [deviceCode, setDeviceCode] = useState<string>("");
   const [isAllocating, setIsAllocating] = useState(false);
-  const [isCameraOn, setIsCameraOn] = useState(() => {
-    return localStorage.getItem("login_mode") === "user";
-  });
+  const [isCameraOn, setIsCameraOn] = useState(mode === 'track');
 
   const [isScanning, setIsScanning] = useState(false);
   const [showNameModal, setShowNameModal] = useState(false);
@@ -339,7 +337,7 @@ const QRScanner = ({ mode = 'track' }: { mode?: 'add' | 'track' }) => {
     setPendingDeviceCode("");
   };
 
-  const isUserMode = localStorage.getItem("login_mode") === "user";
+  const isUserMode = mode === 'track';
 
   const handleParkVehicle = async (parkingPlace: string) => {
     if (!scannedDeviceDetails || !parkingPlace) {
