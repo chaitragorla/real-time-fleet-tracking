@@ -1131,6 +1131,7 @@ const QRScanner = ({ mode = 'track' }: { mode?: 'add' | 'track' }) => {
                     height="450px"
                     showControls={true}
                     isTrackingActive={selectedDevice.is_active}
+                    hideMap={true}
                   />
                 )}
               </div>

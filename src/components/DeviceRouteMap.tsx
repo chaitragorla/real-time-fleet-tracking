@@ -252,6 +252,7 @@ interface DeviceRouteMapProps {
   onReset?: () => void;
   isTrackingActive?: boolean;
   onToggleTracking?: (active: boolean) => void;
+  hideMap?: boolean;
 }
 
 const MapUpdater = ({ center, pathCoordinates, isTrackingActive }: { center: [number, number]; pathCoordinates: [number, number][]; isTrackingActive: boolean }) => {
@@ -302,6 +303,7 @@ const DeviceRouteMap: React.FC<DeviceRouteMapProps> = ({
   onReset,
   isTrackingActive = true,
   onToggleTracking,
+  hideMap = false,
 }) => {
   const [gpsData, setGpsData] = useState<GPSData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -781,14 +783,15 @@ const DeviceRouteMap: React.FC<DeviceRouteMapProps> = ({
       )}
 
       {/* Map */}
-      <div className="border-2 border-gray-200 rounded-xl overflow-hidden relative shadow-md">
-        <MapContainer
-          center={centerCoordinate}
-          zoom={14}
-          scrollWheelZoom={false}
-          style={{ height, width: '100%' }}
-          className="z-0"
-        >
+      {!hideMap && (
+        <div className="border-2 border-gray-200 rounded-xl overflow-hidden relative shadow-md">
+          <MapContainer
+            center={centerCoordinate}
+            zoom={14}
+            scrollWheelZoom={false}
+            style={{ height, width: '100%' }}
+            className="z-0"
+          >
           <TileLayer
             url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
             attribution='&copy; <a href="https://www.google.com/intl/en_US/help/terms_maps.html">Google Maps</a>'
@@ -1019,7 +1022,7 @@ const DeviceRouteMap: React.FC<DeviceRouteMapProps> = ({
               </Tooltip>
             </Marker>
           )}
-        </MapContainer>
+          </MapContainer>
         
         {/* ── Countdown overlay on map ── */}
         {idleCountdown !== null && !hasActiveGeofence && (
@@ -1099,6 +1102,7 @@ const DeviceRouteMap: React.FC<DeviceRouteMapProps> = ({
           </div>
         )}
       </div>
+      )}
 
       {/* Route Summary */}
       {showControls && filteredGpsData.length > 0 && (
