@@ -539,57 +539,41 @@ const QRScanner = () => {
       }
 
       if (isUserMode) {
-        // If device is unclaimed, auto-claim it for this customer
+        // Device must already be claimed by this customer (added from Dashboard)
         if (!existingDevice.allocated_to_customer_id) {
+          toast({
+            title: "Device Not Added",
+            description: "Please add this device from your Dashboard first before scanning it here.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Check if device belongs to this customer or is shared with them
+        const isOwner = existingDevice.allocated_to_customer_id?.toString() === user?.id?.toString();
+        let isShared = false;
+
+        if (!isOwner && user?.id) {
           try {
-            await api.devices.claim(
-              existingDevice.device_code,
-              Number(user.id),
-              `My Device (${existingDevice.device_code.substring(0, 4)})`,
-              'car',
+            const { data: sharedList } = await api.devices.received(user.id);
+            isShared = (sharedList || []).some(
+              (share: any) => share.device?.device_code === existingDevice.device_code
             );
-            toast({
-              title: "Device Claimed!",
-              description: `Device ${existingDevice.device_code} has been assigned to your account.`,
-            });
-            await startTrackingForDevice(existingDevice.device_code);
-            fetchMyDevices();
-          } catch (claimErr) {
-            console.error("Error claiming device:", claimErr);
-            toast({
-              title: "Error",
-              description: "Failed to claim this device. Please try again.",
-              variant: "destructive",
-            });
-            return;
-          }
-        } else {
-          // Device is already claimed — check ownership or sharing
-          const isOwner = existingDevice.allocated_to_customer_id?.toString() === user?.id?.toString();
-          let isShared = false;
-
-          if (!isOwner && user?.id) {
-            try {
-              const { data: sharedList } = await api.devices.received(user.id);
-              isShared = (sharedList || []).some(
-                (share: any) => share.device?.device_code === existingDevice.device_code
-              );
-            } catch (err) {
-              console.error("Error checking shared devices:", err);
-            }
-          }
-
-          if (!isOwner && !isShared) {
-            toast({
-              title: "Access Denied",
-              description: "This device belongs to another customer. You do not have permission to access it.",
-              variant: "destructive",
-            });
-            return;
+          } catch (err) {
+            console.error("Error checking shared devices:", err);
           }
         }
 
-        // Show trip map + geofencing
+        if (!isOwner && !isShared) {
+          toast({
+            title: "Access Denied",
+            description: "This device belongs to another customer. You do not have permission to view its trip details.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Owner or shared — show trip map + geofencing
         setScannedDeviceDetails(existingDevice);
         setSimulatorDeviceCode(existingDevice.device_code);
         setShowSimulatorMap(true);
@@ -675,57 +659,41 @@ const QRScanner = () => {
       }
 
       if (isUserMode) {
-        // If device is unclaimed, auto-claim it for this customer
+        // Device must already be claimed by this customer (added from Dashboard)
         if (!existingDevice.allocated_to_customer_id) {
+          toast({
+            title: "Device Not Added",
+            description: "Please add this device from your Dashboard first before scanning it here.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Check if device belongs to this customer or is shared with them
+        const isOwner = existingDevice.allocated_to_customer_id?.toString() === user?.id?.toString();
+        let isShared = false;
+
+        if (!isOwner && user?.id) {
           try {
-            await api.devices.claim(
-              existingDevice.device_code,
-              Number(user.id),
-              `My Device (${existingDevice.device_code.substring(0, 4)})`,
-              'car',
+            const { data: sharedList } = await api.devices.received(user.id);
+            isShared = (sharedList || []).some(
+              (share: any) => share.device?.device_code === existingDevice.device_code
             );
-            toast({
-              title: "Device Claimed!",
-              description: `Device ${existingDevice.device_code} has been assigned to your account.`,
-            });
-            await startTrackingForDevice(existingDevice.device_code);
-            fetchMyDevices();
-          } catch (claimErr) {
-            console.error("Error claiming device:", claimErr);
-            toast({
-              title: "Error",
-              description: "Failed to claim this device. Please try again.",
-              variant: "destructive",
-            });
-            return;
-          }
-        } else {
-          // Device is already claimed — check ownership or sharing
-          const isOwner = existingDevice.allocated_to_customer_id?.toString() === user?.id?.toString();
-          let isShared = false;
-
-          if (!isOwner && user?.id) {
-            try {
-              const { data: sharedList } = await api.devices.received(user.id);
-              isShared = (sharedList || []).some(
-                (share: any) => share.device?.device_code === existingDevice.device_code
-              );
-            } catch (err) {
-              console.error("Error checking shared devices:", err);
-            }
-          }
-
-          if (!isOwner && !isShared) {
-            toast({
-              title: "Access Denied",
-              description: "This device belongs to another customer. You do not have permission to access it.",
-              variant: "destructive",
-            });
-            return;
+          } catch (err) {
+            console.error("Error checking shared devices:", err);
           }
         }
 
-        // Show trip map + geofencing
+        if (!isOwner && !isShared) {
+          toast({
+            title: "Access Denied",
+            description: "This device belongs to another customer. You do not have permission to view its trip details.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Owner or shared — show trip map + geofencing
         setScannedDeviceDetails(existingDevice);
         setSimulatorDeviceCode(existingDevice.device_code);
         setShowSimulatorMap(true);
