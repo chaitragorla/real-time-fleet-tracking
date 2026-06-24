@@ -1513,7 +1513,7 @@ const QRScanner = ({ mode = 'track' }: { mode?: 'add' | 'track' }) => {
             deviceIcon={
               scannedDeviceDetails?.device_icon ||
               selectedDevice?.device_icon ||
-              simulatorDeviceCode
+              "car"
             }
             height="100vh"
             onClose={() => {
