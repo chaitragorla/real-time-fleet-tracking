@@ -256,14 +256,26 @@ interface DeviceRouteMapProps {
 
 const MapUpdater = ({ center, pathCoordinates, isTrackingActive }: { center: [number, number]; pathCoordinates: [number, number][]; isTrackingActive: boolean }) => {
   const map = useMap();
+  const hasInitializedBounds = useRef(false);
+
   useEffect(() => {
-    if (pathCoordinates.length > 1) {
+    if (pathCoordinates.length === 0) {
+      hasInitializedBounds.current = false;
+      return;
+    }
+
+    if (pathCoordinates.length > 1 && !hasInitializedBounds.current) {
+      // First load: show the whole route
       const bounds = L.latLngBounds(pathCoordinates);
       map.fitBounds(bounds, { padding: [50, 50], animate: true });
-    } else {
-      map.setView(center, map.getZoom(), { animate: true });
+      hasInitializedBounds.current = true;
+    } else if (hasInitializedBounds.current) {
+      // Subsequent points: smoothly pan to follow the car, keeping user's zoom level
+      map.panTo(center, { animate: true, duration: 1.0 });
+    } else if (pathCoordinates.length === 1) {
+      map.setView(center, 15, { animate: true });
     }
-  }, [center, pathCoordinates, isTrackingActive, map]);
+  }, [center, pathCoordinates.length, isTrackingActive, map]);
   return null;
 };
 
