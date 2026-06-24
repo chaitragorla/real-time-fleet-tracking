@@ -539,6 +539,40 @@ const QRScanner = () => {
       }
 
       if (isUserMode) {
+        // Check if the device has been claimed/taken by a customer
+        if (!existingDevice.allocated_to_customer_id) {
+          toast({
+            title: "Access Denied",
+            description: "This device has not been claimed by any customer yet. Please add it to your dashboard first.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Check if the device belongs to the current logged-in customer or is shared with them
+        const isOwner = existingDevice.allocated_to_customer_id?.toString() === user?.id?.toString();
+        let isShared = false;
+
+        if (!isOwner && user?.id) {
+          try {
+            const { data: sharedList } = await api.devices.received(user.id);
+            isShared = (sharedList || []).some(
+              (share: any) => share.device?.device_code === existingDevice.device_code
+            );
+          } catch (err) {
+            console.error("Error checking shared devices:", err);
+          }
+        }
+
+        if (!isOwner && !isShared) {
+          toast({
+            title: "Access Denied",
+            description: "This device belongs to another customer. You do not have permission to access it.",
+            variant: "destructive",
+          });
+          return;
+        }
+
         // User mode: skip parking modal — go straight to live GPS simulator map
         setScannedDeviceDetails(existingDevice);
         setSimulatorDeviceCode(existingDevice.device_code);
@@ -625,6 +659,40 @@ const QRScanner = () => {
       }
 
       if (isUserMode) {
+        // Check if the device has been claimed/taken by a customer
+        if (!existingDevice.allocated_to_customer_id) {
+          toast({
+            title: "Access Denied",
+            description: "This device has not been claimed by any customer yet. Please add it to your dashboard first.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Check if the device belongs to the current logged-in customer or is shared with them
+        const isOwner = existingDevice.allocated_to_customer_id?.toString() === user?.id?.toString();
+        let isShared = false;
+
+        if (!isOwner && user?.id) {
+          try {
+            const { data: sharedList } = await api.devices.received(user.id);
+            isShared = (sharedList || []).some(
+              (share: any) => share.device?.device_code === existingDevice.device_code
+            );
+          } catch (err) {
+            console.error("Error checking shared devices:", err);
+          }
+        }
+
+        if (!isOwner && !isShared) {
+          toast({
+            title: "Access Denied",
+            description: "This device belongs to another customer. You do not have permission to access it.",
+            variant: "destructive",
+          });
+          return;
+        }
+
         // User mode: directly open live GPS simulator map
         setScannedDeviceDetails(existingDevice);
         setSimulatorDeviceCode(existingDevice.device_code);
