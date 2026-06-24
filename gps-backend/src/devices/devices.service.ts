@@ -34,9 +34,20 @@ export class DevicesService {
     return this.deviceModel.findOne({ legacyId }).lean().exec();
   }
 
-  async listByOwner(ownerLegacyId: number) {
+  async resolveLegacyId(customerId: number | string): Promise<number | null> {
+    if (typeof customerId === 'string' && customerId.length === 24) {
+      const user = await this.usersService.findByIdAndFixLegacyId(customerId);
+      return user?.legacyId || null;
+    }
+    const user = await this.usersService.findByLegacyId(Number(customerId));
+    return user?.legacyId || null;
+  }
+
+  async listByOwner(ownerId: number | string) {
+    const legacyId = await this.resolveLegacyId(ownerId);
+    if (!legacyId) return [];
     return this.deviceModel
-      .find({ allocatedToCustomerId: ownerLegacyId })
+      .find({ allocatedToCustomerId: legacyId })
       .sort({ allocatedAt: -1, createdAt: -1 })
       .lean()
       .exec();
@@ -219,12 +230,16 @@ export class DevicesService {
     return { success: true, message: `Device shared successfully with ${user.fullName}!` };
   }
 
-  async listReceived(userLegacyId: number) {
+  async listReceived(userId: number | string) {
+    const userLegacyId = await this.resolveLegacyId(userId);
+    if (!userLegacyId) return [];
     const shares = await this.shareModel.find({ sharedWithUserLegacyId: userLegacyId }).sort({ sharedAt: -1 }).lean();
     return this.hydrateShares(shares);
   }
 
-  async listSent(ownerLegacyId: number) {
+  async listSent(ownerId: number | string) {
+    const ownerLegacyId = await this.resolveLegacyId(ownerId);
+    if (!ownerLegacyId) return [];
     const shares = await this.shareModel.find({ ownerLegacyId }).sort({ sharedAt: -1 }).lean();
     return this.hydrateShares(shares);
   }

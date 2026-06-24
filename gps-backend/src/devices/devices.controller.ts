@@ -34,19 +34,19 @@ export class DevicesController {
 
   @Get('owner/:ownerId')
   async byOwner(@Param('ownerId') ownerId: string) {
-    const devices = await this.devicesService.listByOwner(Number(ownerId));
+    const devices = await this.devicesService.listByOwner(ownerId);
     return { success: true, count: devices.length, data: devices.map((d) => this.devicesService.toLegacyDevice(d)) };
   }
 
   @Get('received/:userId')
   async received(@Param('userId') userId: string) {
-    const data = await this.devicesService.listReceived(Number(userId));
+    const data = await this.devicesService.listReceived(userId);
     return { success: true, count: data.length, data };
   }
 
   @Get('sent/:ownerId')
   async sent(@Param('ownerId') ownerId: string) {
-    const data = await this.devicesService.listSent(Number(ownerId));
+    const data = await this.devicesService.listSent(ownerId);
     return { success: true, count: data.length, data };
   }
 
