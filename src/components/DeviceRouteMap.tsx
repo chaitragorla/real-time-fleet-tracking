@@ -852,48 +852,93 @@ const DeviceRouteMap: React.FC<DeviceRouteMapProps> = ({
           )}
 
           {/* ── 3D Geofence Cubes at each detected stop ── */}
-          {allGeofences.map((zone, idx) => (
-            <React.Fragment key={`geofence-${idx}`}>
-              {/* 3D Cube */}
-              <Marker
-                position={zone.center}
-                icon={buildGeofenceCubeIcon()}
-                interactive={false}
-                zIndexOffset={-1000}
-              />
-              {/* Outer glow circle */}
-              <Circle
-                center={zone.center}
-                radius={200}
-                pathOptions={{
-                  color: '#10B981',
-                  weight: 3,
-                  opacity: 0.3,
-                  fillColor: '#10B981',
-                  fillOpacity: 0.06,
-                  dashArray: '12 6',
-                }}
-              />
-              {/* Main geofence circle */}
-              <Circle
-                center={zone.center}
-                radius={100}
-                pathOptions={{
-                  color: '#059669',
-                  weight: 4,
-                  opacity: 0.7,
-                  fillColor: '#10B981',
-                  fillOpacity: 0.12,
-                }}
-              >
-                <Tooltip permanent direction="bottom" className="geofence-label">
-                  <span style={{ fontWeight: 800, fontSize: 12, color: '#059669' }}>
-                    🟢 GEOFENCE — Trip {zone.tripNumber} Stop
-                  </span>
-                </Tooltip>
-              </Circle>
-            </React.Fragment>
-          ))}
+          {allGeofences.map((zone, idx) => {
+            const isCurrentActiveGeofence = idx === allGeofences.length - 1 && isCurrentlyStopped && hasActiveGeofence;
+
+            if (isCurrentActiveGeofence) {
+              return (
+                <React.Fragment key={`geofence-${idx}`}>
+                  {/* 3D Cube */}
+                  <Marker
+                    position={zone.center}
+                    icon={buildGeofenceCubeIcon()}
+                    interactive={false}
+                    zIndexOffset={-1000}
+                  />
+                  {/* Outer glow circle */}
+                  <Circle
+                    center={zone.center}
+                    radius={200}
+                    pathOptions={{
+                      color: '#10B981',
+                      weight: 3,
+                      opacity: 0.3,
+                      fillColor: '#10B981',
+                      fillOpacity: 0.06,
+                      dashArray: '12 6',
+                    }}
+                  />
+                  {/* Main geofence circle */}
+                  <Circle
+                    center={zone.center}
+                    radius={100}
+                    pathOptions={{
+                      color: '#059669',
+                      weight: 4,
+                      opacity: 0.7,
+                      fillColor: '#10B981',
+                      fillOpacity: 0.12,
+                    }}
+                  >
+                    <Tooltip permanent direction="bottom" className="geofence-label">
+                      <span style={{ fontWeight: 800, fontSize: 12, color: '#059669' }}>
+                        🟢 GEOFENCE — Trip {zone.tripNumber} Stop
+                      </span>
+                    </Tooltip>
+                  </Circle>
+                </React.Fragment>
+              );
+            } else {
+              return (
+                <Marker
+                  key={`geofence-${idx}`}
+                  position={zone.center}
+                  icon={L.divIcon({
+                    html: `<div style="
+                      background-color: white;
+                      border-radius: 50%;
+                      padding: 4px;
+                      border: 3px solid #6B7280;
+                      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                      width: 24px;
+                      height: 24px;
+                      font-weight: bold;
+                      font-size: 10px;
+                      color: #4B5563;
+                    ">${idx + 1}</div>`,
+                    className: "",
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12],
+                  })}
+                >
+                  <Popup>
+                    <div className="text-sm">
+                      <strong>Stop {idx + 1} (End of Trip {zone.tripNumber})</strong><br />
+                      <strong>Time:</strong> {formatTimestamp(zone.timestamp)}
+                    </div>
+                  </Popup>
+                  <Tooltip permanent direction="bottom">
+                    <span style={{ fontWeight: 800, fontSize: 10, color: '#4B5563' }}>
+                      Stop {idx + 1}
+                    </span>
+                  </Tooltip>
+                </Marker>
+              );
+            }
+          })}
 
           {/* ── Start point marker ── */}
           {filteredGpsData.length > 1 && filteredGpsData[0].latitude != null && filteredGpsData[0].longitude != null && (
