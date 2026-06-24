@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap, Tooltip, Circle } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, Tooltip, Circle, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { api } from '@/lib/api';
 import { toast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, MapPin, Clock, CheckCircle2, Navigation } from 'lucide-react';
+import { MapPin, Navigation, Clock, CheckCircle2, RefreshCw, List } from 'lucide-react';
 import { createCustomMarkerIcon, createStartIcon } from '@/utils/iconUtils';
 import { IconSelector } from './IconSelector';
 
@@ -253,6 +253,7 @@ interface DeviceRouteMapProps {
   isTrackingActive?: boolean;
   onToggleTracking?: (active: boolean) => void;
   hideMap?: boolean;
+  fullScreenMode?: boolean;
 }
 
 const MapUpdater = ({ center, pathCoordinates, isTrackingActive }: { center: [number, number]; pathCoordinates: [number, number][]; isTrackingActive: boolean }) => {
@@ -304,6 +305,7 @@ const DeviceRouteMap: React.FC<DeviceRouteMapProps> = ({
   isTrackingActive = true,
   onToggleTracking,
   hideMap = false,
+  fullScreenMode = false,
 }) => {
   const [gpsData, setGpsData] = useState<GPSData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -312,6 +314,7 @@ const DeviceRouteMap: React.FC<DeviceRouteMapProps> = ({
   const [deviceIcon, setDeviceIcon] = useState<string>('car');
   const [showIconSelector, setShowIconSelector] = useState(false);
   const [isUpdatingIcon, setIsUpdatingIcon] = useState(false);
+  const [showTripDetails, setShowTripDetails] = useState(false);
 
   // ── Geofence & Trip State ──
   const [geofenceZones, setGeofenceZones] = useState<GeofenceZone[]>([]);
@@ -659,15 +662,316 @@ const DeviceRouteMap: React.FC<DeviceRouteMapProps> = ({
     return combined;
   }, [detectedStops, geofenceZones]);
 
-  // Trip colors for polylines
-
-
   // Determine current status label
   const isCurrentlyStopped = isVehicleStopped || !isTrackingActive;
   const hasActiveGeofence = geofenceActiveForCurrentStopRef.current || !isTrackingActive;
 
-  return (
-    <div className="space-y-4">
+  const mapContainerContent = (
+    <>
+      <MapContainer
+        center={centerCoordinate}
+        zoom={14}
+        scrollWheelZoom={false}
+        style={{ height: fullScreenMode ? '100vh' : height, width: '100%' }}
+        className="z-0"
+      >
+        <TileLayer
+          url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
+          attribution='&copy; <a href="https://www.google.com/intl/en_US/help/terms_maps.html">Google Maps</a>'
+        />
+        <MapUpdater center={centerCoordinate} pathCoordinates={pathCoordinates} isTrackingActive={isTrackingActive} />
+
+        {/* ── Saved Places (Home, Office, College) ── */}
+        {SAVED_PLACES.map(place => (
+          <React.Fragment key={`place-${place.name}`}>
+            <Marker
+              position={place.coordinates}
+              icon={buildSavedPlaceIcon(place)}
+              zIndexOffset={500}
+            >
+              <Popup>
+                <div className="text-sm min-w-[180px]">
+                  <div className="font-bold text-base mb-1" style={{ color: place.color }}>
+                    {place.emoji} {place.name}
+                  </div>
+                  <div className="text-xs text-gray-600 mb-2">
+                    Vehicle will auto-park here when it arrives and stops for 1 minute.
+                  </div>
+                  <strong>Lat:</strong> {place.coordinates[0].toFixed(6)}<br />
+                  <strong>Lng:</strong> {place.coordinates[1].toFixed(6)}
+                </div>
+              </Popup>
+            </Marker>
+            <Circle
+              center={place.coordinates}
+              radius={ARRIVAL_RADIUS_METERS}
+              pathOptions={{
+                color: place.borderColor,
+                weight: 2,
+                opacity: 0.35,
+                fillColor: place.borderColor,
+                fillOpacity: 0.05,
+                dashArray: '8 6',
+              }}
+            />
+          </React.Fragment>
+        ))}
+
+        {/* ── Trip start markers (no polylines) ── */}
+        {trips.length > 1 && (
+          trips.map(trip => {
+            const validPoints = filteredGpsData.filter(p =>
+              p.latitude != null && p.longitude != null && !isNaN(p.latitude) && !isNaN(p.longitude)
+            );
+            const tripCoords: [number, number][] = validPoints
+              .slice(trip.startIndex, trip.endIndex + 1)
+              .map(p => [p.latitude, p.longitude]);
+            return (
+              <React.Fragment key={`trip-${trip.tripNumber}`}>
+                {tripCoords.length > 0 && trip.tripNumber > 1 && (
+                  <Marker
+                    position={tripCoords[0]}
+                    icon={buildTripStartIcon(trip.tripNumber)}
+                  />
+                )}
+              </React.Fragment>
+            );
+          })
+        )}
+
+        {/* ── Active current route (Polyline) ── */}
+        {pathCoordinates.length > 1 && (
+          <Polyline
+            positions={pathCoordinates}
+            pathOptions={{
+              color: '#3B82F6',
+              weight: 4,
+              opacity: 0.8,
+              dashArray: '10, 10',
+              lineCap: 'round',
+            }}
+          />
+        )}
+
+        {/* ── All Past Stops with Simple Numbered Markers ── */}
+        {allGeofences.map((zone, idx) => {
+          if (isCurrentlyStopped && hasActiveGeofence && idx === allGeofences.length - 1) {
+            return (
+              <React.Fragment key={`geofence-${idx}`}>
+                <Marker
+                  position={zone.center}
+                  icon={buildGeofenceCubeIcon()}
+                  interactive={false}
+                  zIndexOffset={-1000}
+                />
+                <Circle
+                  center={zone.center}
+                  radius={100}
+                  pathOptions={{
+                    color: '#10B981',
+                    weight: 2,
+                    opacity: 0.8,
+                    fillColor: '#10B981',
+                    fillOpacity: 0.2,
+                    dashArray: '10 8',
+                    className: 'geofence-pulse'
+                  }}
+                />
+              </React.Fragment>
+            );
+          } else {
+            return (
+              <Marker
+                key={`stop-${idx}`}
+                position={zone.center}
+                icon={L.divIcon({
+                  html: `<div style="
+                    background: white;
+                    border-radius: 50%;
+                    padding: 4px;
+                    border: 3px solid #6B7280;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    width: 24px;
+                    height: 24px;
+                    font-weight: bold;
+                    font-size: 10px;
+                    color: #4B5563;
+                  ">${idx + 1}</div>`,
+                  className: "",
+                  iconSize: [24, 24],
+                  iconAnchor: [12, 12],
+                })}
+              >
+                <Popup>
+                  <div className="text-sm">
+                    <strong>Stop {idx + 1} (End of Trip {zone.tripNumber})</strong><br />
+                    <strong>Time:</strong> {formatTimestamp(zone.timestamp)}
+                  </div>
+                </Popup>
+                <Tooltip permanent direction="bottom">
+                  <span style={{ fontWeight: 800, fontSize: 10, color: '#4B5563' }}>
+                    Stop {idx + 1}
+                  </span>
+                </Tooltip>
+              </Marker>
+            );
+          }
+        })}
+
+        {/* ── Start point marker ── */}
+        {filteredGpsData.length > 1 && filteredGpsData[0].latitude != null && filteredGpsData[0].longitude != null && (
+          <Marker
+            position={[filteredGpsData[0].latitude, filteredGpsData[0].longitude]}
+            icon={createStartIcon()}
+          >
+            <Popup>
+              <div className="text-sm">
+                <strong>Trip 1 — Start Point</strong><br />
+                <strong>Time:</strong> {formatTimestamp(filteredGpsData[0].timestamp)}<br />
+                <strong>Coordinates:</strong> {filteredGpsData[0].latitude?.toFixed(6)}, {filteredGpsData[0].longitude?.toFixed(6)}
+              </div>
+            </Popup>
+          </Marker>
+        )}
+
+        {/* ── Current position marker ── */}
+        {filteredGpsData.length > 0 && filteredGpsData[filteredGpsData.length - 1].latitude != null && filteredGpsData[filteredGpsData.length - 1].longitude != null && (
+          <Marker
+            position={[filteredGpsData[filteredGpsData.length - 1].latitude, filteredGpsData[filteredGpsData.length - 1].longitude]}
+            icon={createCustomMarkerIcon(deviceIcon, isCurrentlyStopped ? '#059669' : '#10B981', isCurrentlyStopped ? 36 : 24, !isCurrentlyStopped)}
+            eventHandlers={{
+              dblclick: () => setShowIconSelector(true)
+            }}
+            zIndexOffset={2000}
+          >
+            <Popup>
+              <div className="text-sm min-w-[200px]">
+                <div className={`font-bold text-base mb-1 ${
+                  isCurrentlyStopped ? 'text-emerald-700' : 'text-green-700'
+                }`}>
+                  {isCurrentlyStopped && hasActiveGeofence ? '🟢 Parked — Geofence Active' :
+                   isCurrentlyStopped ? '⏸ Stopped' : '🚗 Current Position'}
+                </div>
+                {isCurrentlyStopped && hasActiveGeofence && (
+                  <div className="bg-emerald-50 border border-emerald-200 rounded p-2 mb-2 text-emerald-800 text-xs font-medium">
+                    🟢 Vehicle is inside the geofence zone. Parked safely.
+                  </div>
+                )}
+                <strong>Trip:</strong> {trips.length > 0 ? trips[trips.length - 1].tripNumber : currentTripNumber}<br />
+                <strong>Time:</strong> {formatTimestamp(filteredGpsData[filteredGpsData.length - 1].timestamp)}<br />
+                <strong>Lat:</strong> {filteredGpsData[filteredGpsData.length - 1].latitude?.toFixed(6)}<br />
+                <strong>Lng:</strong> {filteredGpsData[filteredGpsData.length - 1].longitude?.toFixed(6)}<br />
+                <em className="text-xs text-gray-400">Double-click marker to change icon</em>
+              </div>
+            </Popup>
+            <Tooltip
+              permanent
+              direction="top"
+              className={`font-bold px-3 py-1.5 rounded-lg shadow-lg border-2 text-sm ${
+                isCurrentlyStopped && hasActiveGeofence
+                  ? 'bg-emerald-600 border-emerald-400 text-white'
+                  : isCurrentlyStopped
+                  ? 'bg-amber-600 border-amber-400 text-white'
+                  : 'bg-green-600 border-green-400 text-white'
+              }`}
+            >
+              {isCurrentlyStopped && hasActiveGeofence
+                ? `🟢 Parked${arrivedAtPlace ? ` at ${arrivedAtPlace.emoji} ${arrivedAtPlace.name}` : ''}`
+                : isCurrentlyStopped
+                ? `⏸ Stopped (${idleCountdown ?? 0}s to geofence)`
+                : arrivedAtPlace
+                ? `${arrivedAtPlace.emoji} Near ${arrivedAtPlace.name} — Moving`
+                : `🚗 Trip ${trips.length > 0 ? trips[trips.length - 1].tripNumber : currentTripNumber} — Moving`}
+            </Tooltip>
+          </Marker>
+        )}
+      </MapContainer>
+      
+      {/* ── Countdown overlay on map ── */}
+      {idleCountdown !== null && !hasActiveGeofence && (
+        <div style={{
+          position: 'absolute',
+          top: 12,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 1000,
+          background: 'rgba(15,23,42,.95)',
+          backdropFilter: 'blur(12px)',
+          borderRadius: 14,
+          border: `2px solid ${idleCountdown <= 15 ? '#EF4444' : '#F59E0B'}`,
+          padding: '10px 24px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          boxShadow: '0 4px 24px rgba(0,0,0,.5)',
+        }}>
+          <span style={{ fontSize: 24 }}>{arrivedAtPlace ? arrivedAtPlace.emoji : '🅿️'}</span>
+          <div>
+            <p style={{ color: '#F8FAFC', fontWeight: 700, fontSize: 14, margin: 0 }}>
+              Vehicle Stopped{arrivedAtPlace ? ` at ${arrivedAtPlace.name}` : ''}
+            </p>
+            <p style={{
+              color: idleCountdown <= 15 ? '#EF4444' : '#F59E0B',
+              fontSize: 12,
+              margin: 0,
+              fontWeight: 700,
+              animation: idleCountdown <= 10 ? 'blink .7s ease infinite' : 'none',
+            }}>
+              Auto-geofence in {idleCountdown}s
+            </p>
+          </div>
+          <div style={{
+            width: 48, height: 48,
+            borderRadius: '50%',
+            background: `conic-gradient(${idleCountdown <= 15 ? '#EF4444' : '#F59E0B'} ${((GEOFENCE_TIMER_SECONDS - idleCountdown) / GEOFENCE_TIMER_SECONDS) * 360}deg, rgba(255,255,255,.1) 0deg)`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontWeight: 900, fontSize: 16, color: '#F8FAFC',
+            fontFamily: 'monospace',
+          }}>
+            {idleCountdown}
+          </div>
+        </div>
+      )}
+
+      {/* Icon Selector Modal */}
+      {showIconSelector && (
+        <div className="absolute inset-0 z-[1000] flex items-center justify-center">
+          <div 
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm" 
+            onClick={() => setShowIconSelector(false)}
+          />
+          <div className="relative bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full mx-4 border border-gray-200 z-[1001]">
+            <h3 className="text-lg font-semibold mb-4 text-center">Change Device Icon</h3>
+            <IconSelector
+              selectedIcon={deviceIcon}
+              onIconSelect={updateDeviceIcon}
+            />
+            <div className="flex gap-3 mt-6">
+              <Button
+                variant="outline"
+                onClick={() => setShowIconSelector(false)}
+                disabled={isUpdatingIcon}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+            </div>
+            {isUpdatingIcon && (
+              <div className="absolute inset-0 bg-white/90 flex items-center justify-center rounded-xl">
+                <RefreshCw className="w-6 h-6 animate-spin text-blue-600" />
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+
+  const controlPanels = (
+    <>
       {showControls && (
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
@@ -678,488 +982,136 @@ const DeviceRouteMap: React.FC<DeviceRouteMapProps> = ({
             </span>
             <span className="text-xs text-gray-500">({filteredGpsData.length} points)</span>
             {trips.length > 1 && (
-              <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full font-semibold">
+              <span className="ml-2 px-2 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-bold rounded-full uppercase tracking-wider">
                 {trips.length} Trips
               </span>
             )}
             {allGeofences.length > 0 && (
-              <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full font-semibold">
-                {allGeofences.length} Geofence{allGeofences.length > 1 ? 's' : ''}
+              <span className="ml-1 px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-full uppercase tracking-wider">
+                {allGeofences.length} Geofences
               </span>
             )}
           </div>
-            <div className="flex items-center gap-3">
-              {lastUpdated && (
-                <div className="flex items-center gap-1 text-xs text-gray-500">
-                  <Clock className="w-3 h-3" />
-                  <span>Updated: {formatTimestamp(lastUpdated.toISOString())}</span>
-                </div>
-              )}
-      
-              <Button
-                onClick={fetchGPSData}
-                disabled={isLoading}
-                variant="outline"
-                size="sm"
-              >
-                {isLoading ? (
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="w-4 h-4" />
-                )}
-              </Button>
-            </div>
-          </div>
-          {/* Date Filter Dropdown */}
-          <div className="flex items-center gap-2 self-end">
-            <label htmlFor="date-filter" className="text-xs text-gray-600">Filter by Date:</label>
-            <select
-              id="date-filter"
-              className="border rounded px-2 py-1 text-xs"
-              value={selectedDate}
-              onChange={e => setSelectedDate(e.target.value)}
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-gray-500 flex items-center gap-1">
+              <Clock className="w-3 h-3" />
+              Updated: {lastUpdated ? formatTimestamp(lastUpdated.toISOString()) : 'Never'}
+            </span>
+            <button
+              onClick={() => fetchGPSData()}
+              disabled={isLoading}
+              className="p-1.5 hover:bg-gray-200 rounded-md transition-colors"
+              title="Refresh GPS Data"
             >
-              {dateOptions.map(date => (
-                <option key={date} value={date}>{date === 'ALL' ? 'ALL' : new Date(date).toLocaleDateString()}</option>
-              ))}
-            </select>
+              <RefreshCw className={`w-4 h-4 text-gray-600 ${isLoading ? 'animate-spin' : ''}`} />
+            </button>
+            {onReset && (
+              <button
+                onClick={onReset}
+                className="p-1.5 hover:bg-gray-200 rounded-md text-gray-600 ml-2"
+                title="Reset simulation"
+              >
+                <RefreshCw className="w-4 h-4" /> Reset
+              </button>
+            )}
           </div>
+        </div>
+        
+        <div className="flex justify-end items-center gap-2 mt-2 px-1">
+          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Filter by Date:</span>
+          <select
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="text-sm border-gray-300 rounded-md shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 py-1 pl-3 pr-8 bg-white font-medium"
+          >
+            <option value="ALL">ALL</option>
+            {dateOptions.map(date => (
+              <option key={date} value={date}>{date}</option>
+            ))}
+          </select>
+        </div>
         </div>
       )}
 
-      {/* Vehicle Status Banner */}
-      {pathCoordinates.length > 0 && (
-        <div className={`p-4 rounded-xl border font-semibold flex items-center justify-between transition-all ${
+      {filteredGpsData.length > 0 && (
+        <div className={`mt-2 p-3 rounded-xl border flex items-center justify-between shadow-sm transition-colors ${
           isCurrentlyStopped && hasActiveGeofence
-            ? 'bg-emerald-50 border-emerald-400 text-emerald-800'
+            ? 'bg-gradient-to-r from-emerald-900 to-[#0F2B1F] border-emerald-800'
             : isCurrentlyStopped
-            ? 'bg-amber-50 border-amber-400 text-amber-800'
-            : 'bg-green-500/10 border-green-500/20 text-green-400'
+            ? 'bg-amber-50 border-amber-200'
+            : 'bg-gradient-to-r from-[#0F2B1F] to-emerald-900 border-green-800'
         }`}>
           <div className="flex items-center gap-3">
             {isCurrentlyStopped && hasActiveGeofence && <CheckCircle2 className="w-7 h-7 text-emerald-500 flex-shrink-0" />}
             {isCurrentlyStopped && !hasActiveGeofence && <Clock className="w-6 h-6 text-amber-500 flex-shrink-0" />}
             {!isCurrentlyStopped && <Navigation className="w-6 h-6 text-green-400 flex-shrink-0" />}
             <div className="flex flex-col">
-              <span className={`text-xs uppercase tracking-wider block font-bold ${
-                isCurrentlyStopped && hasActiveGeofence ? 'text-emerald-600' :
-                isCurrentlyStopped ? 'text-amber-600' : 'text-green-400/70'
-              }`}>
-                Vehicle Status — Trip {trips.length > 0 ? trips[trips.length - 1].tripNumber : currentTripNumber}
+              <span className={`text-[10px] uppercase font-bold ${isCurrentlyStopped && hasActiveGeofence ? 'text-emerald-400' : isCurrentlyStopped ? 'text-amber-600' : 'text-green-400'}`}>
+                Status
               </span>
-              <span className={`text-sm font-semibold ${
-                isCurrentlyStopped && hasActiveGeofence ? 'text-emerald-800' :
-                isCurrentlyStopped ? 'text-amber-800' : 'text-green-300'
-              }`}>
-                {isCurrentlyStopped && hasActiveGeofence
-                  ? '🟢 Vehicle parked — Geofence active'
-                  : isCurrentlyStopped
-                  ? '⏸ Vehicle stopped — Waiting for geofence...'
-                  : `🚗 Vehicle is moving (Trip ${trips.length > 0 ? trips[trips.length - 1].tripNumber : currentTripNumber})`}
+              <span className={`text-sm font-bold ${isCurrentlyStopped && hasActiveGeofence ? 'text-white' : isCurrentlyStopped ? 'text-amber-800' : 'text-white'}`}>
+                {isCurrentlyStopped && hasActiveGeofence ? 'Parked' : isCurrentlyStopped ? 'Stopped' : 'Moving'}
               </span>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {idleCountdown !== null && !hasActiveGeofence && (
-              <span className={`px-3 py-1.5 rounded-full text-xs font-bold border uppercase tracking-wide ${
-                idleCountdown <= 15 ? 'bg-red-500/20 border-red-500/30 text-red-500 animate-pulse' :
-                'bg-amber-500/20 border-amber-500/30 text-amber-600'
-              }`}>
-                🅿️ Geofence in {idleCountdown}s
-              </span>
-            )}
-            <span className={`px-4 py-1.5 rounded-full text-xs font-bold border uppercase tracking-wide ${
-              isCurrentlyStopped && hasActiveGeofence
-                ? 'bg-emerald-500 border-emerald-600 text-white shadow-sm'
-                : isCurrentlyStopped
-                ? 'bg-amber-500/20 border-amber-500/30 text-amber-700'
-                : 'bg-green-500/20 border-green-500/30 text-green-400'
-            }`}>
-              {isCurrentlyStopped && hasActiveGeofence ? '🟢 Geofenced' :
-               isCurrentlyStopped ? '⏸ Stopped' : '🚗 Moving'}
-            </span>
           </div>
         </div>
       )}
 
-      {/* Map */}
-      {!hideMap && (
-        <div className="border-2 border-gray-200 rounded-xl overflow-hidden relative shadow-md">
-          <MapContainer
-            center={centerCoordinate}
-            zoom={14}
-            scrollWheelZoom={false}
-            style={{ height, width: '100%' }}
-            className="z-0"
-          >
-          <TileLayer
-            url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
-            attribution='&copy; <a href="https://www.google.com/intl/en_US/help/terms_maps.html">Google Maps</a>'
-          />
-          <MapUpdater center={centerCoordinate} pathCoordinates={pathCoordinates} isTrackingActive={isTrackingActive} />
-
-          {/* ── Saved Places (Home, Office, College) ── */}
-          {SAVED_PLACES.map(place => (
-            <React.Fragment key={`place-${place.name}`}>
-              <Marker
-                position={place.coordinates}
-                icon={buildSavedPlaceIcon(place)}
-                zIndexOffset={500}
-              >
-                <Popup>
-                  <div className="text-sm min-w-[180px]">
-                    <div className="font-bold text-base mb-1" style={{ color: place.color }}>
-                      {place.emoji} {place.name}
-                    </div>
-                    <div className="text-xs text-gray-600 mb-2">
-                      Vehicle will auto-park here when it arrives and stops for 1 minute.
-                    </div>
-                    <strong>Lat:</strong> {place.coordinates[0].toFixed(6)}<br />
-                    <strong>Lng:</strong> {place.coordinates[1].toFixed(6)}
-                  </div>
-                </Popup>
-              </Marker>
-              {/* Arrival detection radius circle */}
-              <Circle
-                center={place.coordinates}
-                radius={ARRIVAL_RADIUS_METERS}
-                pathOptions={{
-                  color: place.borderColor,
-                  weight: 2,
-                  opacity: 0.35,
-                  fillColor: place.borderColor,
-                  fillOpacity: 0.05,
-                  dashArray: '8 6',
-                }}
-              />
-            </React.Fragment>
-          ))}
-
-          {/* ── Trip start markers (no polylines) ── */}
-          {trips.length > 1 && (
-            trips.map(trip => {
-              const validPoints = filteredGpsData.filter(p =>
-                p.latitude != null && p.longitude != null && !isNaN(p.latitude) && !isNaN(p.longitude)
-              );
-              const tripCoords: [number, number][] = validPoints
-                .slice(trip.startIndex, trip.endIndex + 1)
-                .map(p => [p.latitude, p.longitude]);
-              return (
-                <React.Fragment key={`trip-${trip.tripNumber}`}>
-                  {/* Trip start marker */}
-                  {tripCoords.length > 0 && trip.tripNumber > 1 && (
-                    <Marker
-                      position={tripCoords[0]}
-                      icon={buildTripStartIcon(trip.tripNumber)}
-                    >
-                      <Popup>
-                        <div className="text-sm">
-                          <strong className="text-purple-700">Trip {trip.tripNumber} Start</strong><br />
-                          <strong>Time:</strong> {formatTimestamp(trip.startTimestamp)}<br />
-                          <strong>Coordinates:</strong> {tripCoords[0][0].toFixed(6)}, {tripCoords[0][1].toFixed(6)}
-                        </div>
-                      </Popup>
-                    </Marker>
-                  )}
-                </React.Fragment>
-              );
-            })
-          )}
-
-          {/* ── 3D Geofence Cubes at each detected stop ── */}
-          {allGeofences.map((zone, idx) => {
-            const isCurrentActiveGeofence = idx === allGeofences.length - 1 && isCurrentlyStopped && hasActiveGeofence;
-
-            if (isCurrentActiveGeofence) {
-              return (
-                <React.Fragment key={`geofence-${idx}`}>
-                  {/* 3D Cube */}
-                  <Marker
-                    position={zone.center}
-                    icon={buildGeofenceCubeIcon()}
-                    interactive={false}
-                    zIndexOffset={-1000}
-                  />
-                  {/* Outer glow circle */}
-                  <Circle
-                    center={zone.center}
-                    radius={200}
-                    pathOptions={{
-                      color: '#10B981',
-                      weight: 3,
-                      opacity: 0.3,
-                      fillColor: '#10B981',
-                      fillOpacity: 0.06,
-                      dashArray: '12 6',
-                    }}
-                  />
-                  {/* Main geofence circle */}
-                  <Circle
-                    center={zone.center}
-                    radius={100}
-                    pathOptions={{
-                      color: '#059669',
-                      weight: 4,
-                      opacity: 0.7,
-                      fillColor: '#10B981',
-                      fillOpacity: 0.12,
-                    }}
-                  >
-                    <Tooltip permanent direction="bottom" className="geofence-label">
-                      <span style={{ fontWeight: 800, fontSize: 12, color: '#059669' }}>
-                        🟢 GEOFENCE — Trip {zone.tripNumber} Stop
-                      </span>
-                    </Tooltip>
-                  </Circle>
-                </React.Fragment>
-              );
-            } else {
-              return (
-                <Marker
-                  key={`geofence-${idx}`}
-                  position={zone.center}
-                  icon={L.divIcon({
-                    html: `<div style="
-                      background-color: white;
-                      border-radius: 50%;
-                      padding: 4px;
-                      border: 3px solid #6B7280;
-                      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-                      display: flex;
-                      align-items: center;
-                      justify-content: center;
-                      width: 24px;
-                      height: 24px;
-                      font-weight: bold;
-                      font-size: 10px;
-                      color: #4B5563;
-                    ">${idx + 1}</div>`,
-                    className: "",
-                    iconSize: [24, 24],
-                    iconAnchor: [12, 12],
-                  })}
-                >
-                  <Popup>
-                    <div className="text-sm">
-                      <strong>Stop {idx + 1} (End of Trip {zone.tripNumber})</strong><br />
-                      <strong>Time:</strong> {formatTimestamp(zone.timestamp)}
-                    </div>
-                  </Popup>
-                  <Tooltip permanent direction="bottom">
-                    <span style={{ fontWeight: 800, fontSize: 10, color: '#4B5563' }}>
-                      Stop {idx + 1}
-                    </span>
-                  </Tooltip>
-                </Marker>
-              );
-            }
-          })}
-
-          {/* ── Start point marker ── */}
-          {filteredGpsData.length > 1 && filteredGpsData[0].latitude != null && filteredGpsData[0].longitude != null && (
-            <Marker
-              position={[filteredGpsData[0].latitude, filteredGpsData[0].longitude]}
-              icon={createStartIcon()}
-            >
-              <Popup>
-                <div className="text-sm">
-                  <strong>Trip 1 — Start Point</strong><br />
-                  <strong>Time:</strong> {formatTimestamp(filteredGpsData[0].timestamp)}<br />
-                  <strong>Coordinates:</strong> {filteredGpsData[0].latitude?.toFixed(6)}, {filteredGpsData[0].longitude?.toFixed(6)}
-                </div>
-              </Popup>
-            </Marker>
-          )}
-
-          {/* ── Current position marker ── */}
-          {filteredGpsData.length > 0 && filteredGpsData[filteredGpsData.length - 1].latitude != null && filteredGpsData[filteredGpsData.length - 1].longitude != null && (
-            <Marker
-              position={[filteredGpsData[filteredGpsData.length - 1].latitude, filteredGpsData[filteredGpsData.length - 1].longitude]}
-              icon={createCustomMarkerIcon(deviceIcon, isCurrentlyStopped ? '#059669' : '#10B981', isCurrentlyStopped ? 36 : 24, !isCurrentlyStopped)}
-              eventHandlers={{
-                dblclick: () => setShowIconSelector(true)
-              }}
-              zIndexOffset={2000}
-            >
-              <Popup>
-                <div className="text-sm min-w-[200px]">
-                  <div className={`font-bold text-base mb-1 ${
-                    isCurrentlyStopped ? 'text-emerald-700' : 'text-green-700'
-                  }`}>
-                    {isCurrentlyStopped && hasActiveGeofence ? '🟢 Parked — Geofence Active' :
-                     isCurrentlyStopped ? '⏸ Stopped' : '🚗 Current Position'}
-                  </div>
-                  {isCurrentlyStopped && hasActiveGeofence && (
-                    <div className="bg-emerald-50 border border-emerald-200 rounded p-2 mb-2 text-emerald-800 text-xs font-medium">
-                      🟢 Vehicle is inside the geofence zone. Parked safely.
-                    </div>
-                  )}
-                  <strong>Trip:</strong> {trips.length > 0 ? trips[trips.length - 1].tripNumber : currentTripNumber}<br />
-                  <strong>Time:</strong> {formatTimestamp(filteredGpsData[filteredGpsData.length - 1].timestamp)}<br />
-                  <strong>Lat:</strong> {filteredGpsData[filteredGpsData.length - 1].latitude?.toFixed(6)}<br />
-                  <strong>Lng:</strong> {filteredGpsData[filteredGpsData.length - 1].longitude?.toFixed(6)}<br />
-                  <em className="text-xs text-gray-400">Double-click marker to change icon</em>
-                </div>
-              </Popup>
-              <Tooltip
-                permanent
-                direction="top"
-                className={`font-bold px-3 py-1.5 rounded-lg shadow-lg border-2 text-sm ${
-                  isCurrentlyStopped && hasActiveGeofence
-                    ? 'bg-emerald-600 border-emerald-400 text-white'
-                    : isCurrentlyStopped
-                    ? 'bg-amber-600 border-amber-400 text-white'
-                    : 'bg-green-600 border-green-400 text-white'
-                }`}
-              >
-                {isCurrentlyStopped && hasActiveGeofence
-                  ? `🟢 Parked${arrivedAtPlace ? ` at ${arrivedAtPlace.emoji} ${arrivedAtPlace.name}` : ''}`
-                  : isCurrentlyStopped
-                  ? `⏸ Stopped (${idleCountdown ?? 0}s to geofence)`
-                  : arrivedAtPlace
-                  ? `${arrivedAtPlace.emoji} Near ${arrivedAtPlace.name} — Moving`
-                  : `🚗 Trip ${trips.length > 0 ? trips[trips.length - 1].tripNumber : currentTripNumber} — Moving`}
-              </Tooltip>
-            </Marker>
-          )}
-          </MapContainer>
-        
-        {/* ── Countdown overlay on map ── */}
-        {idleCountdown !== null && !hasActiveGeofence && (
-          <div style={{
-            position: 'absolute',
-            top: 12,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 1000,
-            background: 'rgba(15,23,42,.95)',
-            backdropFilter: 'blur(12px)',
-            borderRadius: 14,
-            border: `2px solid ${idleCountdown <= 15 ? '#EF4444' : '#F59E0B'}`,
-            padding: '10px 24px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            boxShadow: '0 4px 24px rgba(0,0,0,.5)',
-          }}>
-            <span style={{ fontSize: 24 }}>{arrivedAtPlace ? arrivedAtPlace.emoji : '🅿️'}</span>
-            <div>
-              <p style={{ color: '#F8FAFC', fontWeight: 700, fontSize: 14, margin: 0 }}>
-                Vehicle Stopped{arrivedAtPlace ? ` at ${arrivedAtPlace.name}` : ''}
-              </p>
-              <p style={{
-                color: idleCountdown <= 15 ? '#EF4444' : '#F59E0B',
-                fontSize: 12,
-                margin: 0,
-                fontWeight: 700,
-                animation: idleCountdown <= 10 ? 'blink .7s ease infinite' : 'none',
-              }}>
-                Auto-geofence in {idleCountdown}s
-              </p>
-            </div>
-            <div style={{
-              width: 48, height: 48,
-              borderRadius: '50%',
-              background: `conic-gradient(${idleCountdown <= 15 ? '#EF4444' : '#F59E0B'} ${((GEOFENCE_TIMER_SECONDS - idleCountdown) / GEOFENCE_TIMER_SECONDS) * 360}deg, rgba(255,255,255,.1) 0deg)`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontWeight: 900, fontSize: 16, color: '#F8FAFC',
-              fontFamily: 'monospace',
-            }}>
-              {idleCountdown}
-            </div>
-          </div>
-        )}
-
-        {/* Icon Selector Modal */}
-        {showIconSelector && (
-          <div className="absolute inset-0 z-[1000] flex items-center justify-center">
-            <div 
-              className="absolute inset-0 bg-black/40 backdrop-blur-sm" 
-              onClick={() => setShowIconSelector(false)}
-            />
-            <div className="relative bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full mx-4 border border-gray-200 z-[1001]">
-              <h3 className="text-lg font-semibold mb-4 text-center">Change Device Icon</h3>
-              <IconSelector
-                selectedIcon={deviceIcon}
-                onIconSelect={updateDeviceIcon}
-              />
-              <div className="flex gap-3 mt-6">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowIconSelector(false)}
-                  disabled={isUpdatingIcon}
-                  className="flex-1"
-                >
-                  Cancel
-                </Button>
-              </div>
-              {isUpdatingIcon && (
-                <div className="absolute inset-0 bg-white/90 flex items-center justify-center rounded-xl">
-                  <RefreshCw className="w-6 h-6 animate-spin text-blue-600" />
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-      )}
-
-      {/* Route Summary */}
       {showControls && filteredGpsData.length > 0 && (
         <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
-          <strong>Route Summary:</strong> {filteredGpsData.length} GPS points
-          {trips.length > 1 && ` across ${trips.length} trips`}
-          {allGeofences.length > 0 && ` • ${allGeofences.length} geofence stop${allGeofences.length > 1 ? 's' : ''}`}
-          {' '}from {formatTimestamp(filteredGpsData[0].timestamp)} to {formatTimestamp(filteredGpsData[filteredGpsData.length - 1].timestamp)}
+          <strong>Route Summary:</strong> {filteredGpsData.length} points
+          {trips.length > 1 && ` • ${trips.length} trips`}
+          {allGeofences.length > 0 && ` • ${allGeofences.length} geofences`}
         </div>
       )}
 
-      {/* Geofence Info Cards */}
       {allGeofences.length > 0 && (
         <div className="space-y-2">
           {allGeofences.map((zone, idx) => (
-            <div key={`gf-card-${idx}`} className="rounded-xl border-2 border-emerald-400 bg-gradient-to-r from-emerald-50 to-green-50 shadow-lg overflow-hidden">
-              <div className="flex items-center justify-between bg-gradient-to-r from-emerald-500 to-green-600 px-4 py-2.5">
-                <div className="flex items-center gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-white flex-shrink-0" />
-                  <span className="text-white font-bold text-sm uppercase tracking-wide">
-                    🟢 {zone.placeName ? `Parked at ${zone.placeName}` : `Geofence — Trip ${zone.tripNumber} Stop`}
-                  </span>
-                </div>
-                <span className="bg-white/20 text-white text-xs font-bold px-3 py-1 rounded-full backdrop-blur-sm">
-                  Trip {zone.tripNumber} • 100m radius
-                </span>
-              </div>
-              <div className="p-3 grid grid-cols-1 sm:grid-cols-4 gap-3">
-                <div className="flex flex-col">
-                  <span className="text-[10px] uppercase font-bold text-emerald-600 tracking-wider mb-0.5">{zone.placeName ? 'Location' : 'Status'}</span>
-                  <span className="text-sm font-semibold text-emerald-700">{zone.placeName ? `📍 ${zone.placeName}` : '🟢 Parked & Safe'}</span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-[10px] uppercase font-bold text-emerald-600 tracking-wider mb-0.5">Stopped At</span>
-                  <span className="text-sm font-semibold text-gray-800">{formatTimestamp(zone.timestamp)}</span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-[10px] uppercase font-bold text-emerald-600 tracking-wider mb-0.5">Latitude</span>
-                  <span className="text-sm font-mono text-gray-800">{zone.center[0].toFixed(6)}</span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-[10px] uppercase font-bold text-emerald-600 tracking-wider mb-0.5">Longitude</span>
-                  <span className="text-sm font-mono text-gray-800">{zone.center[1].toFixed(6)}</span>
-                </div>
-              </div>
-              <div className="px-4 pb-2.5">
-                <div className="bg-emerald-100/80 border border-emerald-300 rounded-lg p-2 text-xs text-emerald-800 font-medium flex items-center gap-2">
-                  <span className="text-lg">🛡️</span>
-                  3D geofence created after 1 min of no movement{zone.placeName ? ` at ${zone.placeName}` : ''}. Vehicle moved again → Trip {zone.tripNumber + 1} started.
-                </div>
-              </div>
+            <div key={`gf-card-${idx}`} className="rounded-xl border border-emerald-200 bg-white p-3 shadow-sm">
+               <div className="flex items-center gap-2 mb-1">
+                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                 <span className="text-xs font-bold text-gray-700">{zone.placeName || `Stop ${idx + 1}`}</span>
+               </div>
+               <div className="text-[10px] text-gray-500">{formatTimestamp(zone.timestamp)}</div>
             </div>
           ))}
         </div>
       )}
+    </>
+  );
 
-      {/* Geofence Created Overlay */}
+  return (
+    <div className={fullScreenMode ? "fixed inset-0 z-[50]" : "space-y-4"}>
+      {fullScreenMode ? (
+        <div className="relative w-full h-full">
+          {!hideMap && mapContainerContent}
+          
+          <button
+            onClick={() => setShowTripDetails(!showTripDetails)}
+            className="absolute top-4 right-4 z-[1000] bg-gray-900/90 backdrop-blur-md text-white px-4 py-2 rounded-xl shadow-lg border border-gray-700 flex items-center gap-2 hover:bg-gray-800 transition-colors"
+          >
+            <List className="w-5 h-5" />
+            <span className="font-bold">Trip Details</span>
+          </button>
+
+          {showTripDetails && (
+            <div className="absolute top-16 right-4 w-96 max-h-[calc(100vh-5rem)] overflow-y-auto z-[1000] bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200 p-4 space-y-4">
+              {controlPanels}
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
+          {controlPanels}
+          {!hideMap && (
+            <div className="border-2 border-gray-200 rounded-xl overflow-hidden relative shadow-md">
+              {mapContainerContent}
+            </div>
+          )}
+        </>
+      )}
+
       {showGeofenceBanner && (
         <div
           className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm"
@@ -1174,12 +1126,6 @@ const DeviceRouteMap: React.FC<DeviceRouteMapProps> = ({
             <h2 className="text-emerald-400 text-2xl font-black mb-2">
               {arrivedAtPlace ? `Parked at ${arrivedAtPlace.name}!` : 'Geofence Created!'}
             </h2>
-            <p className="text-emerald-300 text-sm mb-2">
-              Vehicle stopped for 1 minute
-            </p>
-            <p className="text-emerald-200/70 text-xs mb-6">
-              3D green geofence placed automatically{arrivedAtPlace ? ` at ${arrivedAtPlace.name}` : ''}. Trip {currentTripNumber} stop.
-            </p>
             <button
               onClick={() => setShowGeofenceBanner(false)}
               className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-base px-10 py-3 rounded-xl transition-colors"
