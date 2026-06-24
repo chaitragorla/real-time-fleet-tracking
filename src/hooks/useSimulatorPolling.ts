@@ -90,6 +90,13 @@ export function useSimulatorPolling({
         const response = await apiRequest<{ success: boolean; vehicle: VehicleTelemetry }>(`/v1/simulator/vehicles/${vehicleId}`);
         if (response.success && response.vehicle) {
           setVehicleData(response.vehicle);
+          
+          setAllVehicles(prev => {
+            const newMap = new Map(prev);
+            newMap.set(response.vehicle.vehicleId, response.vehicle);
+            return newMap;
+          });
+
           onUpdate?.(response.vehicle);
         }
       }
