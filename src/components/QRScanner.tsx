@@ -580,14 +580,6 @@ const QRScanner = () => {
         return;
       }
 
-      if (existingDevice.is_active) {
-        toast({
-          title: "Unable to scan",
-          description: "Trip is active and unable to scan.",
-          variant: "destructive",
-        });
-        return;
-      }
 
       if (existingDevice.allocated_to_customer_id) {
         const deviceOwnerId =
@@ -701,14 +693,6 @@ const QRScanner = () => {
         return;
       }
 
-      if (existingDevice.is_active) {
-        toast({
-          title: "Unable to scan",
-          description: "Trip is active and unable to scan.",
-          variant: "destructive",
-        });
-        return;
-      }
 
       if (existingDevice.allocated_to_customer_id) {
         const deviceOwnerId =
