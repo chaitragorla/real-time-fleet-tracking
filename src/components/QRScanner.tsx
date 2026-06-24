@@ -21,10 +21,16 @@ import {
   VideoOff,
   Satellite,
   MapPin,
+  Play,
+  Pause,
+  Square,
+  CheckCircle,
+  Navigation,
 } from "lucide-react";
 import Webcam from "react-webcam";
 import { BrowserQRCodeReader } from "@zxing/browser";
 import { NotFoundException } from "@zxing/library";
+import { Device } from "@/types";
 import DeviceNameModal from "./DeviceNameModal";
 import GPSTracker from "./GPSTracker";
 import SimulatorMap from "./SimulatorMap";
@@ -1502,14 +1508,17 @@ const QRScanner = ({ mode = 'track' }: { mode?: 'add' | 'track' }) => {
             background: "#0F172A",
           }}
         >
-          <SimulatorMap
+          <DeviceRouteMap
             deviceCode={simulatorDeviceCode}
-            deviceIcon={
-              scannedDeviceDetails?.device_icon ||
-              selectedDevice?.device_icon ||
-              "car"
+            deviceName={
+              scannedDeviceDetails?.device_name ||
+              selectedDevice?.device_name ||
+              simulatorDeviceCode
             }
             height="100vh"
+            showControls={true}
+            isTrackingActive={true}
+            onToggleTracking={() => {}}
             onClose={() => {
               setShowSimulatorMap(false);
               setSimulatorDeviceCode("");
