@@ -21,7 +21,6 @@ import {
   VideoOff,
   Satellite,
   MapPin,
-  X,
 } from "lucide-react";
 import Webcam from "react-webcam";
 import { BrowserQRCodeReader } from "@zxing/browser";
@@ -1503,8 +1502,15 @@ const QRScanner = ({ mode = 'track' }: { mode?: 'add' | 'track' }) => {
             background: "#0F172A",
           }}
         >
-          <button 
-            onClick={() => {
+          <SimulatorMap
+            deviceCode={simulatorDeviceCode}
+            deviceIcon={
+              scannedDeviceDetails?.device_icon ||
+              selectedDevice?.device_icon ||
+              "car"
+            }
+            height="100vh"
+            onClose={() => {
               setShowSimulatorMap(false);
               setSimulatorDeviceCode("");
               setScannedDeviceDetails(null);
@@ -1514,13 +1520,6 @@ const QRScanner = ({ mode = 'track' }: { mode?: 'add' | 'track' }) => {
               setAnimBounds(null);
               setAnimMapCenter(null);
             }}
-            className="absolute top-4 left-4 z-[100000] bg-gray-900/90 text-white w-10 h-10 rounded-full flex items-center justify-center shadow-lg border border-gray-700 hover:bg-gray-800 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-          <DeviceRouteMap
-            deviceCode={simulatorDeviceCode}
-            fullScreenMode={true}
           />
         </div>
       )}
