@@ -627,8 +627,7 @@ const SimulatorMap: React.FC<SimulatorMapProps> = ({
   // ── REST Polling ──
   const { vehicleData, allVehicles, isLoading, error, refresh } =
     useSimulatorPolling({
-      pollAll: !deviceCode,
-      vehicleId: deviceCode || undefined,
+      pollAll: true,
       onUpdate: (t) => {
         // Always track last known position
         lastKnownPosRef.current = [t.latitude, t.longitude];
@@ -1041,7 +1040,9 @@ const SimulatorMap: React.FC<SimulatorMapProps> = ({
         ))}
 
         {/* Vehicles */}
-        {(deviceCode && vehicleData ? [vehicleData] : Array.from(allVehicles.values())).map((t) => {
+        {Array.from(allVehicles.values())
+          .filter(t => !deviceCode || t.vehicleId === deviceCode)
+          .map((t) => {
           const hist = pathHistory.get(t.vehicleId) || [];
           return (
             <React.Fragment key={t.vehicleId}>

@@ -300,12 +300,21 @@ export class DevicesService {
 
       if (i < 60) {
         // Leg 1: KR Circle to Kanteerava Stadium
-        const t = i / 60;
+        // Stop 1 at i=20 to 25 (150 seconds)
+        const effI = i >= 20 && i <= 25 ? 20 : (i > 25 ? i - 5 : i);
+        const t = effI / 55;
         lat = startLat + (midLat - startLat) * t;
         lng = startLng + (midLng - startLng) * t;
       } else {
         // Leg 2: Kanteerava Stadium to Prof Ashirvadam Junction
-        const t = (i - 60) / 60;
+        // Stop 2 at i=75 to 80, Stop 3 at i=100 to 105
+        let effI = i - 60;
+        if (effI >= 15 && effI <= 20) effI = 15;
+        else if (effI > 20 && effI < 40) effI = effI - 5;
+        else if (effI >= 40 && effI <= 45) effI = 35;
+        else if (effI > 45) effI = effI - 10;
+
+        const t = effI / 50;
         lat = midLat + (endLat - midLat) * t;
         lng = midLng + (endLng - midLng) * t;
       }
