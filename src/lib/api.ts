@@ -150,8 +150,11 @@ export const api = {
       device_name?: string;
       device_icon?: string;
     }) => apiRequest<ApiEnvelope<LegacyDevice>>(`/v1/devices/${deviceCode}/allocate`, { method: 'POST', body: JSON.stringify(body) }),
-    claim: (deviceCode: string, customerId: number, deviceName?: string, deviceIcon?: string) =>
-      apiRequest<ApiEnvelope<LegacyDevice>>(`/v1/devices/${deviceCode}/claim`, { method: 'POST', body: JSON.stringify({ customer_id: customerId, device_name: deviceName, device_icon: deviceIcon }) }),
+    claim: (deviceCode: string, customerId: number | string, deviceName?: string, deviceIcon?: string) =>
+      apiRequest<ApiEnvelope<LegacyDevice>>(`/v1/devices/${deviceCode}/claim`, {
+        method: 'POST',
+        body: JSON.stringify({ customer_id: customerId, device_name: deviceName, device_icon: deviceIcon }),
+      }),
     share: (deviceCode: string, phoneNumber: string) =>
       apiRequest<ApiEnvelope<unknown>>(`/v1/devices/${deviceCode}/share`, {
         method: 'POST',

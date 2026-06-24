@@ -87,7 +87,7 @@ export class DevicesController {
   }
 
   @Post(':deviceCode/claim')
-  async claim(@Param('deviceCode') deviceCode: string, @Body() body: { customer_id: number; device_name?: string; device_icon?: string }) {
+  async claim(@Param('deviceCode') deviceCode: string, @Body() body: { customer_id: number | string; device_name?: string; device_icon?: string }) {
     const device = await this.devicesService.claimDevice(deviceCode, body.customer_id, body.device_name, body.device_icon);
     return { success: true, data: this.devicesService.toLegacyDevice(device) };
   }

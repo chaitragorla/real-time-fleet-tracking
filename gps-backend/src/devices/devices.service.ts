@@ -154,7 +154,7 @@ export class DevicesService {
     });
   }
 
-  async claimDevice(deviceCode: string, customerId: number, deviceName?: string, deviceIcon?: string) {
+  async claimDevice(deviceCode: string, customerId: number | string, deviceName?: string, deviceIcon?: string) {
     const device = await this.findByCode(deviceCode);
     if (!device) {
       throw new NotFoundException({ success: false, error: 'Device not found.' });
@@ -163,7 +163,13 @@ export class DevicesService {
       throw new NotFoundException({ success: false, error: 'Device is already assigned.' });
     }
     
-    const user = await this.usersService.findByLegacyId(customerId, 'customer');
+    let user;
+    if (typeof customerId === 'string' && customerId.length === 24) {
+      user = await this.usersService.findByIdAndFixLegacyId(customerId);
+    } else {
+      user = await this.usersService.findByLegacyId(Number(customerId), 'customer');
+    }
+
     if (!user) {
       throw new NotFoundException({ success: false, error: 'Customer not found.' });
     }

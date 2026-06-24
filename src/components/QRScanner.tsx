@@ -309,7 +309,7 @@ const QRScanner = ({ mode = 'track' }: { mode?: 'add' | 'track' }) => {
 
       await api.devices.claim(
         deviceCode,
-        Number(user.id),
+        user.id,
         deviceName,
         deviceIcon,
       );

@@ -34,6 +34,15 @@ export class UsersService {
     return user ? user.toObject() : null;
   }
 
+  async findByIdAndFixLegacyId(objectId: string) {
+    const user = await this.userModel.findById(objectId).exec();
+    if (user && !user.legacyId) {
+      user.legacyId = await this.nextLegacyId();
+      await user.save();
+    }
+    return user ? user.toObject() : null;
+  }
+
   async findAnyByEmail(email: string) {
     const formatted = email.toLowerCase().trim();
     const roles: UserRole[] = ['superadmin', 'customer'];

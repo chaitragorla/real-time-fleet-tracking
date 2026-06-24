@@ -12,7 +12,7 @@ import ConfirmationDialog from '../components/ConfirmationDialog';
 import { Crown, Users, LogOut, Trash2, RefreshCw, BookOpen } from 'lucide-react';
 
 interface Customer {
-  id: number;
+  id: string | number;
   full_name: string;
   username: string;
   phone_number: string;
@@ -25,7 +25,7 @@ const SuperAdminDashboard = () => {
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);
   const [deleteCustomerDialog, setDeleteCustomerDialog] = useState<{
     open: boolean;
-    customerId: number | null;
+    customerId: string | number | null;
     customerName: string;
   }>({
     open: false,
@@ -38,7 +38,7 @@ const SuperAdminDashboard = () => {
     try {
       const { data } = await api.users.list('customer');
       setCustomers((data || []).map(user => ({
-        id: Number(user.id),
+        id: user.id,
         full_name: user.full_name,
         username: user.email || user.phone_number,
         phone_number: user.phone_number,
@@ -56,7 +56,7 @@ const SuperAdminDashboard = () => {
     }
   };
 
-  const handleDeleteCustomerClick = (customerId: number, customerName: string) => {
+  const handleDeleteCustomerClick = (customerId: string | number, customerName: string) => {
     setDeleteCustomerDialog({
       open: true,
       customerId,
