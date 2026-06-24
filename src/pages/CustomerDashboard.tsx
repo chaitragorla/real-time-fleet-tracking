@@ -7,22 +7,24 @@ import { CustomerSidebar } from '../components/CustomerSidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Shield } from 'lucide-react';
+import { Shield, MapPin } from 'lucide-react';
 import QRScanner from '../components/QRScanner';
 import CustomerDevices from '../components/CustomerDevices';
 import TripHistory from '../components/TripHistory';
+import SimulatorMap from '../components/SimulatorMap';
 
 import ConfirmationDialog from '../components/ConfirmationDialog';
 import { toast } from '@/hooks/use-toast';
 
 const CustomerDashboard = () => {
   const { user, logout } = useAuth();
-  const [activeSection, setActiveSection] = useState(() => {
-    return localStorage.getItem('login_mode') === 'user' ? 'add-device' : 'my-devices';
-  });
+  const [activeSection, setActiveSection] = useState('my-devices');
   const [customerData, setCustomerData] = useState<any>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [showLiveMap, setShowLiveMap] = useState(false);
+  const [liveDeviceCode, setLiveDeviceCode] = useState('');
+  const [liveDeviceIcon, setLiveDeviceIcon] = useState('car');
 
   useEffect(() => {
     if (user) {
@@ -214,41 +216,34 @@ const CustomerDashboard = () => {
     }
   };
 
-  const isUserMode = localStorage.getItem('login_mode') === 'user';
-
-  if (isUserMode) {
-    return (
-      <div className="flex flex-col h-screen w-full bg-[#09090b] text-white overflow-hidden">
-        <div className="flex items-center justify-between p-4 border-b border-gray-900 bg-gray-950/40">
-          <h1 className="text-lg font-bold text-white">Traceify GPS Scan Center</h1>
-          <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => {
-                localStorage.setItem('login_mode', 'customer');
-                window.location.reload();
-              }}
-              className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 hover:text-cyan-300 rounded-xl"
-            >
-              Switch to Dashboard
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={logout}
-              className="border-gray-800 text-gray-300 hover:text-white hover:bg-gray-900 rounded-xl"
-            >
-              Logout
-            </Button>
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto bg-[#09090b]">
-          <QRScanner />
-        </div>
-      </div>
-    );
-  }
+  const handleTrackLive = async () => {
+    if (!user) return;
+    try {
+      const { data: devices } = await api.devices.list();
+      const myDevices = (devices || []).filter(
+        (d: any) => d.allocated_to_customer_id?.toString() === user.id?.toString()
+      );
+      if (myDevices.length === 0) {
+        toast({
+          title: "No Devices",
+          description: "You don't have any devices yet. Please add a device first.",
+          variant: "destructive",
+        });
+        return;
+      }
+      const device = myDevices[0];
+      setLiveDeviceCode(device.device_code);
+      setLiveDeviceIcon(device.device_icon || 'car');
+      setShowLiveMap(true);
+    } catch (error) {
+      console.error('Error fetching devices:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch your devices. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <SidebarProvider>
@@ -266,13 +261,11 @@ const CustomerDashboard = () => {
             <Button 
               variant="outline" 
               size="sm"
-              onClick={() => {
-                localStorage.setItem('login_mode', 'user');
-                window.location.reload();
-              }}
-              className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 hover:text-cyan-300 rounded-xl"
+              onClick={handleTrackLive}
+              className="border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 hover:text-emerald-300 rounded-xl flex items-center gap-2"
             >
-              Switch to Scanner Mode
+              <MapPin className="w-4 h-4" />
+              Track Live
             </Button>
           </div>
           <div className="p-6 flex-1 overflow-y-auto">
@@ -280,6 +273,28 @@ const CustomerDashboard = () => {
           </div>
         </SidebarInset>
       </div>
+
+      {/* Full-screen Live Tracking Map overlay */}
+      {showLiveMap && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            background: "#0F172A",
+          }}
+        >
+          <SimulatorMap
+            deviceCode={liveDeviceCode}
+            deviceIcon={liveDeviceIcon}
+            height="100vh"
+            onClose={() => {
+              setShowLiveMap(false);
+              setLiveDeviceCode('');
+            }}
+          />
+        </div>
+      )}
     </SidebarProvider>
   );
 };
