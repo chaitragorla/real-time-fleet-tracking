@@ -10,7 +10,7 @@
  *     useSimulatorPolling({ vehicleId: 'my-device' });
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { apiRequest } from '@/lib/api';
 
 const POLL_INTERVAL_MS = 2000; // 2 seconds default
@@ -71,6 +71,11 @@ export function useSimulatorPolling({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const onUpdateRef = useRef(onUpdate);
+  useEffect(() => {
+    onUpdateRef.current = onUpdate;
+  }, [onUpdate]);
+
   const fetchData = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -82,7 +87,7 @@ export function useSimulatorPolling({
           const vehiclesMap = new Map<string, VehicleTelemetry>();
           response.vehicles.forEach((v: VehicleTelemetry) => {
             vehiclesMap.set(v.vehicleId, v);
-            onUpdate?.(v);
+            onUpdateRef.current?.(v);
           });
           setAllVehicles(vehiclesMap);
         }
@@ -97,7 +102,7 @@ export function useSimulatorPolling({
             return newMap;
           });
 
-          onUpdate?.(response.vehicle);
+          onUpdateRef.current?.(response.vehicle);
         }
       }
     } catch (err) {
@@ -105,7 +110,7 @@ export function useSimulatorPolling({
     } finally {
       setIsLoading(false);
     }
-  }, [vehicleId, pollAll, onUpdate]);
+  }, [vehicleId, pollAll]);
 
   const refresh = useCallback(() => {
     fetchData();
