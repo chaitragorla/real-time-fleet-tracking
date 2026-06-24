@@ -778,7 +778,8 @@ const QRScanner = ({ mode = 'track' }: { mode?: 'add' | 'track' }) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="max-w-md mx-auto pt-8 px-4">
+      {!(mode === 'track' && selectedDevice) && (
+        <div className="max-w-md mx-auto pt-8 px-4">
         {/* Header */}
         <div className="text-center mb-8">
           <div className="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
@@ -971,7 +972,8 @@ const QRScanner = ({ mode = 'track' }: { mode?: 'add' | 'track' }) => {
             </li>
           </ol>
         </div>
-      </div>
+        </div>
+      )}
 
       {/* Device Name Modal */}
       <DeviceNameModal
