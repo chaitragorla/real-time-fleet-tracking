@@ -99,7 +99,7 @@ const QRImage: React.FC<{ code: string; qrCodeData?: string | null }> = ({
   );
 };
 
-const QRScanner = () => {
+const QRScanner = ({ mode = 'track' }: { mode?: 'add' | 'track' }) => {
   const { user } = useAuth();
   const [deviceCode, setDeviceCode] = useState<string>("");
   const [isAllocating, setIsAllocating] = useState(false);
@@ -1004,7 +1004,7 @@ const QRScanner = () => {
       />
 
       {/* Active Vehicle Tracking Card */}
-      {selectedDevice && (
+      {mode === 'track' && selectedDevice && (
         <div className="max-w-4xl mx-auto mt-8 px-4 pb-12">
           <Card className="bg-gray-900 border-gray-800 text-white">
             <CardHeader>
