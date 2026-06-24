@@ -1,7 +1,6 @@
 import React from 'react';
 import { Car, Truck, Bus, Bike, Plane, Ship, Train, Ambulance, Flame } from 'lucide-react';
 import L from 'leaflet';
-import { renderToString } from 'react-dom/server';
 
 const iconComponents = {
   car: Car,
@@ -40,29 +39,31 @@ export const createCustomMarkerIcon = (iconName: string, color: string = '#3B82F
     });
   }
 
-  // Fallback: Lucide SVG icon for other vehicle types
-  const IconComponent = getIconComponent(iconName);
-  const iconSvg = renderToString(
-    <div style={{ 
-      backgroundColor: 'white', 
-      borderRadius: '50%', 
-      padding: '8px', 
-      border: `3px solid ${color}`,
-      boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center'
-    }}>
-      <IconComponent size={size} color={color} />
+  // Fallback: Build a raw SVG string for standard Lucide icons
+  // rather than using renderToString, which crashes in Vite production builds.
+  let svgPath = '';
+  switch (iconName) {
+    case 'truck': svgPath = '<path d="M10 17h4V5H2v12h3"/><path d="M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5v8h2"/><path d="M14 17h1"/><circle cx="7.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/>'; break;
+    case 'bus': svgPath = '<path d="M8 6v6"/><path d="M15 6v6"/><path d="M2 12h19.6"/><path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/><circle cx="7" cy="18" r="2"/><path d="M9 18h5"/><circle cx="16" cy="18" r="2"/>'; break;
+    case 'bike':
+    case 'motorcycle': svgPath = '<circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/>'; break;
+    default: svgPath = '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>'; break; // generic icon
+  }
+
+  const iconSvg = `
+    <div style="background-color: white; border-radius: 50%; padding: 8px; border: 3px solid ${color}; box-shadow: 0 2px 8px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        ${svgPath}
+      </svg>
     </div>
-  );
+  `;
   
   return L.divIcon({
     html: iconSvg,
     className: 'custom-marker-icon',
     iconSize: [size + 16, size + 16],
-    iconAnchor: [size/2 + 8, size/2 + 8],
-    popupAnchor: [0, -(size/2 + 8)]
+    iconAnchor: [(size + 16) / 2, (size + 16) / 2],
+    popupAnchor: [0, -((size + 16) / 2)]
   });
 };
 

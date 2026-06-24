@@ -1040,7 +1040,7 @@ const SimulatorMap: React.FC<SimulatorMapProps> = ({
 
         {/* Vehicles */}
         {Array.from(allVehicles.values())
-          .filter(t => !deviceCode || t.vehicleId === deviceCode)
+          .filter(t => !deviceCode || t.vehicleId === deviceCode.trim())
           .map((t) => {
           const hist = pathHistory.get(t.vehicleId) || [];
           return (
