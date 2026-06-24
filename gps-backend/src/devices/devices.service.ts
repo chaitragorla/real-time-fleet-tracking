@@ -168,7 +168,7 @@ export class DevicesService {
       throw new NotFoundException({ success: false, error: 'Customer not found.' });
     }
 
-    await this.generateRandomGpsPath(deviceCode, user.legacyId as number);
+    this.generateRandomGpsPath(deviceCode, user.legacyId as number).catch(e => console.error("Error generating random GPS path:", e));
 
     return this.update(deviceCode, {
       allocatedToCustomerId: user.legacyId,
