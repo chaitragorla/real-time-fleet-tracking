@@ -128,23 +128,11 @@ function buildDeviceMarkerIcon(
   const sc =
     status === "Moving" ? "#10B981" : status === "Idle" ? "#F59E0B" : "#EF4444";
 
-  if (!iconName || iconName === "car") {
-    // Raw car image — no circle, just the photo, big and clear
-    return L.divIcon({
-      html: `<img src="/car-marker.png"
-        style="width:72px;height:72px;object-fit:contain;
-               filter:drop-shadow(0 4px 8px rgba(0,0,0,.6))
-                      drop-shadow(0 0 6px ${sc}99);
-               display:block;" />`,
-      className: "",
-      iconSize: [72, 72],
-      iconAnchor: [36, 36],
-    });
-  }
-
-  // For other vehicle types — icon without any wrapper circle
+  // Use the standard fa-car icon for all vehicles, including default 'car'
+  // to ensure it always renders immediately without relying on external images
   const sc2 = sc;
-  const inner = createCustomMarkerIcon(iconName, sc2, 52);
+  const actualIconName = (!iconName || iconName === "car") ? "fa-solid fa-car" : iconName;
+  const inner = createCustomMarkerIcon(actualIconName, sc2, 52);
   return L.divIcon({
     html: `<div style="width:72px;height:72px;display:flex;align-items:center;
       justify-content:center;
@@ -578,6 +566,63 @@ const SimulatorMap: React.FC<SimulatorMapProps> = ({
 
   // Clean up timer on unmount
   useEffect(() => () => stopIdleTimer(), []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Fetch History for Past Stops ──
+  useEffect(() => {
+    if (!deviceCode) return;
+    
+    // Fetch last 24 hours of history to find previous stops
+    apiRequest<{ success: boolean; data: any[] }>(`/v1/gps/history/${deviceCode}?hours=24`)
+      .then(res => {
+        if (!res.success || !res.data || res.data.length < 2) return;
+        
+        const validPoints = res.data.filter(p => p.latitude != null && p.longitude != null);
+        const stopsResult: { lat: number; lng: number; label: string }[] = [];
+        let inStop = false;
+        let stopStartIdx = -1;
+        let stopCount = 1;
+
+        // Simple distance function
+        const distM = (p1: [number, number], p2: [number, number]) => {
+          const R = 6371e3;
+          const lat1 = (p1[0] * Math.PI) / 180, lat2 = (p2[0] * Math.PI) / 180;
+          const dLat = ((p2[0] - p1[0]) * Math.PI) / 180, dLon = ((p2[1] - p1[1]) * Math.PI) / 180;
+          const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                    Math.cos(lat1) * Math.cos(lat2) *
+                    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+          return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        };
+
+        for (let i = 1; i < validPoints.length; i++) {
+          const prev: [number, number] = [validPoints[i - 1].latitude, validPoints[i - 1].longitude];
+          const curr: [number, number] = [validPoints[i].latitude, validPoints[i].longitude];
+          const dist = distM(prev, curr);
+
+          if (dist < 50) { // 50 meters stop threshold
+            if (!inStop) {
+              inStop = true;
+              stopStartIdx = i - 1;
+            }
+            const stopDuration = new Date(validPoints[i].timestamp).getTime() -
+              new Date(validPoints[stopStartIdx].timestamp).getTime();
+
+            // If stopped for more than 2 minutes (120s)
+            if (stopDuration >= 120000 && !stopsResult.find(s => s.lat === validPoints[stopStartIdx].latitude && s.lng === validPoints[stopStartIdx].longitude)) {
+              stopsResult.push({
+                lat: validPoints[stopStartIdx].latitude,
+                lng: validPoints[stopStartIdx].longitude,
+                label: String(stopCount++)
+              });
+            }
+          } else {
+            inStop = false;
+          }
+        }
+        
+        setPastStops(stopsResult);
+      })
+      .catch(() => {});
+  }, [deviceCode]);
 
   // ── REST Polling ──
   const { vehicleData, allVehicles, isLoading, error, refresh } =
