@@ -977,7 +977,66 @@ const SimulatorMap: React.FC<SimulatorMapProps> = ({
         />
         <MapFollower center={mapCenter} />
 
-        {/* ── Removed Hardcoded Fake Stops & Danger Zones ── */}
+        {/* ── Saved Places (Home, Office, College) ── */}
+        {SAVED_PLACES.map(place => (
+          <React.Fragment key={`place-${place.name}`}>
+            <Marker
+              position={place.coordinates}
+              icon={buildSavedPlaceIcon(place)}
+              zIndexOffset={500}
+            >
+              <Popup>
+                <div style={{ minWidth: 180, fontFamily: "'Inter',sans-serif" }}>
+                  <div style={{ fontWeight: 800, fontSize: 16, color: place.color, marginBottom: 4 }}>
+                    {place.emoji} {place.name}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#666', marginBottom: 8 }}>
+                    Vehicle will auto-park here when it arrives and stops for 1 minute.
+                  </div>
+                  <div style={{ fontSize: 11, color: '#333' }}>
+                    <strong>Lat:</strong> {place.coordinates[0].toFixed(6)}<br />
+                    <strong>Lng:</strong> {place.coordinates[1].toFixed(6)}
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
+            <Circle
+              center={place.coordinates}
+              radius={ARRIVAL_RADIUS_METERS}
+              pathOptions={{
+                color: place.borderColor,
+                weight: 2.5,
+                opacity: 0.5,
+                fillColor: place.borderColor,
+                fillOpacity: 0.08,
+                dashArray: '8 6',
+              }}
+            />
+          </React.Fragment>
+        ))}
+
+        {/* ── Danger Zones ── */}
+        {DANGER_ZONES.map((zone) => (
+          <Circle
+            key={`danger-${zone.name}`}
+            center={zone.coordinates}
+            radius={zone.radiusMeters}
+            pathOptions={{
+              color: '#EF4444', // Red
+              weight: 3,
+              opacity: 0.8,
+              fillColor: '#EF4444',
+              fillOpacity: 0.15,
+              dashArray: '10 8', // Dashed line
+            }}
+          >
+            <Tooltip permanent direction="center" className="geo-lbl">
+              <span style={{ fontWeight: 900, fontSize: 13, color: '#DC2626', textShadow: '0 0 4px white', letterSpacing: 1, whiteSpace: 'nowrap' }}>
+                ⚠️ DANGER ZONE
+              </span>
+            </Tooltip>
+          </Circle>
+        ))}
 
         {/* Vehicles */}
         {Array.from(allVehicles.values())
@@ -1013,21 +1072,7 @@ const SimulatorMap: React.FC<SimulatorMapProps> = ({
           />
         )}
 
-        {/* ── Past Stops (A, B, C...) ── */}
-        {pastStops.map((stop) => (
-          <Marker
-            key={`stop-${stop.label}`}
-            position={[stop.lat, stop.lng]}
-            zIndexOffset={1500}
-            icon={buildStopHistoryIcon(stop.label)}
-          >
-            <Tooltip permanent direction="top" offset={[0, -14]} className="sim-tip">
-              <span style={{ fontWeight: 700, fontSize: 11, color: '#BE185D' }}>
-                Stop {stop.label}
-              </span>
-            </Tooltip>
-          </Marker>
-        ))}
+
       </MapContainer>
 
       {/* Controls panel completely removed — device is fully autonomous */}

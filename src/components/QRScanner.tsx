@@ -1508,17 +1508,14 @@ const QRScanner = ({ mode = 'track' }: { mode?: 'add' | 'track' }) => {
             background: "#0F172A",
           }}
         >
-          <DeviceRouteMap
+          <SimulatorMap
             deviceCode={simulatorDeviceCode}
-            deviceName={
-              scannedDeviceDetails?.device_name ||
-              selectedDevice?.device_name ||
+            deviceIcon={
+              scannedDeviceDetails?.device_icon ||
+              selectedDevice?.device_icon ||
               simulatorDeviceCode
             }
             height="100vh"
-            showControls={true}
-            isTrackingActive={true}
-            onToggleTracking={() => {}}
             onClose={() => {
               setShowSimulatorMap(false);
               setSimulatorDeviceCode("");
