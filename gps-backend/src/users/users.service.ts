@@ -26,10 +26,12 @@ export class UsersService {
   ) {}
 
   async findByEmailAndRole(email: string, role: UserRole) {
-    return this.userModel
-      .findOne({ email: email.toLowerCase().trim(), role })
-      .lean()
-      .exec();
+    const user = await this.userModel.findOne({ email: email.toLowerCase().trim(), role }).exec();
+    if (user && !user.legacyId) {
+      user.legacyId = await this.nextLegacyId();
+      await user.save();
+    }
+    return user ? user.toObject() : null;
   }
 
   async findAnyByEmail(email: string) {
@@ -37,9 +39,7 @@ export class UsersService {
     const roles: UserRole[] = ['superadmin', 'customer'];
     for (const role of roles) {
       const user = await this.findByEmailAndRole(formatted, role);
-      if (user) {
-        return user;
-      }
+      if (user) return user;
     }
     return null;
   }
