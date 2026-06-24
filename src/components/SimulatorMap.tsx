@@ -242,7 +242,7 @@ function buildGeofenceCubeIcon(): L.DivIcon {
   const rpy = Math.round((ay + by + fy + ey) / 4);
 
   const svg = `
-<svg width="217" height="175" viewBox="0 0 310 250" xmlns="http://www.w3.org/2000/svg">
+<svg width="155" height="125" viewBox="0 0 310 250" xmlns="http://www.w3.org/2000/svg">
 <style>
   @keyframes cage-drop {
     0%   { transform: translateY(-36px) scaleY(0.6); opacity:0; }

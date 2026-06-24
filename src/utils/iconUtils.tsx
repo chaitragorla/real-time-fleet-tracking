@@ -98,19 +98,19 @@ export const createStartIcon = () => {
 export const getGeofenceOffsets = (vehicleIcon: string) => {
   const icon = (vehicleIcon || 'car').toLowerCase();
   if (icon === 'bike' || icon === 'motorcycle') {
-    // Small vehicle geofence bounds
+    // Small vehicle geofence bounds (50% smaller)
     return {
       home: [
-        [0.0008, 0.0008],
-        [0.0012, 0.0012]
+        [0.0009, 0.0009],
+        [0.0011, 0.0011]
       ] as [number, number][],
       college: [
-        [-0.0012, 0.0008],
-        [-0.0008, 0.0012]
+        [-0.0011, 0.0009],
+        [-0.0009, 0.0011]
       ] as [number, number][],
       office: [
-        [-0.0012, -0.0012],
-        [-0.0008, -0.0008]
+        [-0.0011, -0.0011],
+        [-0.0009, -0.0009]
       ] as [number, number][],
       centerOffset: {
         HOME: [0.001, 0.001] as [number, number],
@@ -119,19 +119,19 @@ export const getGeofenceOffsets = (vehicleIcon: string) => {
       }
     };
   } else if (icon === 'truck' || icon === 'bus' || icon === 'train' || icon === 'ship') {
-    // Large vehicle geofence bounds
+    // Large vehicle geofence bounds (50% smaller)
     return {
       home: [
-        [0.0001, 0.0001],
-        [0.0019, 0.0019]
+        [0.00055, 0.00055],
+        [0.00145, 0.00145]
       ] as [number, number][],
       college: [
-        [-0.0019, 0.0001],
-        [-0.0001, 0.0019]
+        [-0.00145, 0.00055],
+        [-0.00055, 0.00145]
       ] as [number, number][],
       office: [
-        [-0.0019, -0.0019],
-        [-0.0001, -0.0001]
+        [-0.00145, -0.00145],
+        [-0.00055, -0.00055]
       ] as [number, number][],
       centerOffset: {
         HOME: [0.001, 0.001] as [number, number],
@@ -140,19 +140,19 @@ export const getGeofenceOffsets = (vehicleIcon: string) => {
       }
     };
   } else {
-    // Default (car, ambulance, firetruck, plane, etc.)
+    // Default (car, ambulance, firetruck, plane, etc.) (50% smaller)
     return {
       home: [
-        [0.0005, 0.0005],
-        [0.0015, 0.0015]
+        [0.00075, 0.00075],
+        [0.00125, 0.00125]
       ] as [number, number][],
       college: [
-        [-0.0015, 0.0005],
-        [-0.0005, 0.0015]
+        [-0.00125, 0.00075],
+        [-0.00075, 0.00125]
       ] as [number, number][],
       office: [
-        [-0.0015, -0.0015],
-        [-0.0005, -0.0005]
+        [-0.00125, -0.00125],
+        [-0.00075, -0.00075]
       ] as [number, number][],
       centerOffset: {
         HOME: [0.001, 0.001] as [number, number],
