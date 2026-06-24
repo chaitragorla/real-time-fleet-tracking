@@ -156,7 +156,7 @@ const QRScanner = ({ mode = 'track' }: { mode?: 'add' | 'track' }) => {
     try {
       const { data } = await api.devices.byOwner(user.id);
       setDevices(data || []);
-      if (data && data.length > 0 && !selectedDevice) {
+      if (mode === 'add' && data && data.length > 0 && !selectedDevice) {
         setSelectedDevice(data[0]);
       }
     } catch (error) {
@@ -573,10 +573,13 @@ const QRScanner = ({ mode = 'track' }: { mode?: 'add' | 'track' }) => {
           return;
         }
 
-        // Owner or shared — show trip map + geofencing
+        // Owner or shared — show tracking info below
+        setSelectedDevice(existingDevice);
         setScannedDeviceDetails(existingDevice);
-        setSimulatorDeviceCode(existingDevice.device_code);
-        setShowSimulatorMap(true);
+        toast({
+          title: "Device Found",
+          description: `Showing tracking info for ${existingDevice.device_name || existingDevice.device_code}`,
+        });
         return;
       }
 
@@ -685,11 +688,14 @@ const QRScanner = ({ mode = 'track' }: { mode?: 'add' | 'track' }) => {
           return;
         }
 
-        // Owner or shared — show trip map + geofencing
+        // Owner or shared — show tracking info below
+        setSelectedDevice(existingDevice);
         setScannedDeviceDetails(existingDevice);
-        setSimulatorDeviceCode(existingDevice.device_code);
-        setShowSimulatorMap(true);
         setDeviceCode("");
+        toast({
+          title: "Device Found",
+          description: `Showing tracking info for ${existingDevice.device_name || existingDevice.device_code}`,
+        });
         return;
       }
 
