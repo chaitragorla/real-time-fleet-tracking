@@ -571,12 +571,12 @@ const QRScanner = ({ mode = 'track' }: { mode?: 'add' | 'track' }) => {
           return;
         }
 
-        // Owner or shared — show tracking info below
-        setSelectedDevice(existingDevice);
-        setScannedDeviceDetails(existingDevice);
+        // Owner or shared — open SimulatorMap immediately
+        setSimulatorDeviceCode(existingDevice.device_code);
+        setShowSimulatorMap(true);
         toast({
-          title: "Device Found",
-          description: `Showing tracking info for ${existingDevice.device_name || existingDevice.device_code}`,
+          title: "Live Tracking",
+          description: `Opening Live Tracking for ${existingDevice.device_name || existingDevice.device_code}`,
         });
         return;
       }

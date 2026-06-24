@@ -613,7 +613,7 @@ const SimulatorMap: React.FC<SimulatorMapProps> = ({
             const pos = lastKnownPosRef.current;
             if (pos) {
               setPastStops((prev) => {
-                const label = String.fromCharCode(65 + prev.length);
+                const label = String(prev.length + 1);
                 return [...prev, { lat: pos[0], lng: pos[1], label }];
               });
             }
