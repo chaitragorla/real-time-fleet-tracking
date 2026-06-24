@@ -377,10 +377,9 @@ function buildGeofenceCubeIcon(): L.DivIcon {
   return L.divIcon({
     html: svg,
     className: "",
-    iconSize: [217, 175],
+    iconSize: [155, 125],
     // Anchor at front-face centre so car marker sits inside the cage
-    // Front face centre (scaled 70%): (112 * 0.7, 152 * 0.7) = (78.4, 106.4)
-    iconAnchor: [78, 106],
+    iconAnchor: [56, 76],
   });
 }
 
