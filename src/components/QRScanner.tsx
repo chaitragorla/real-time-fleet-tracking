@@ -563,11 +563,19 @@ const QRScanner = ({ mode = 'track' }: { mode?: 'add' | 'track' }) => {
         }
 
         if (!isOwner && !isShared) {
-          toast({
-            title: "Access Denied",
-            description: "This device belongs to another customer. You do not have permission to view its trip details.",
-            variant: "destructive",
-          });
+          if (!existingDevice.allocated_to_customer_id) {
+            toast({
+              title: "Device Not Linked",
+              description: "This device is not linked to your account. Please click 'Add Device' on your dashboard to link it first.",
+              variant: "destructive",
+            });
+          } else {
+            toast({
+              title: "Access Denied",
+              description: "This device belongs to another customer. You do not have permission to view its trip details.",
+              variant: "destructive",
+            });
+          }
           return;
         }
 
